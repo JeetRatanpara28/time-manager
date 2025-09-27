@@ -6,7 +6,7 @@ defmodule TimeManagerPhxWeb do
   This can be used in your application as:
 
       use TimeManagerPhxWeb, :controller
-      use TimeManagerPhxWeb, :html
+      # use TimeManagerPhxWeb, :html
 
   The definitions below will be executed for every controller,
   component, etc, so keep them short and clean, focused
@@ -63,3 +63,4 @@ defmodule TimeManagerPhxWeb do
     apply(__MODULE__, which, [])
   end
 end
+

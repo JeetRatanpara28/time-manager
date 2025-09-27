@@ -1,0 +1,36 @@
+<header class="header">
+  <div class="header-title">Time Manager</div>
+  <div class="header-actions"></div>
+  </header>
+
+<section class="content grid-2">
+  <div class="panel" id="users-panel">
+    <div class="panel-top">
+      <h2>Users</h2>
+      <div class="toolbar">
+        <div class="field field-inline">
+          <input id="search" class="input input-search" type="text" placeholder="Search users by name or email" />
+        </div>
+      </div>
+    </div>
+    <div id="user-list" class="list" aria-live="polite"></div>
+  </div>
+
+  <div class="panel" id="create-user-panel">
+    <div class="panel-top">
+      <h2>Create User</h2>
+    </div>
+    <form id="create-user-form" class="stack" autocomplete="off">
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" name="username" class="input" type="text" required placeholder="e.g. johndoe" />
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" class="input" type="email" required placeholder="e.g. john@example.com" />
+      </div>
+      <button type="submit" class="btn btn-primary">Create</button>
+      <p id="form-msg" class="muted" style="display:none;"></p>
+    </form>
+  </div>
+</section>
