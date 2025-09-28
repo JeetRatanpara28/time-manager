@@ -2,6 +2,33 @@
 import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 
 type User = { id: string; username: string; email: string }
+
+// WorkingTime filter helpers
+function openWtFilter() {
+  const y1 = new Date(); y1.setDate(y1.getDate() - 1); y1.setHours(0,0,0,0)
+  const y2 = new Date(); y2.setDate(y2.getDate() - 1); y2.setHours(23,59,59,0)
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  const toLocal = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  wtFilterStart.value = toLocal(y1)
+  wtFilterEnd.value = toLocal(y2)
+  showWtFilter.value = true
+}
+function toQueryDateTime(dtl: string) {
+  if (!dtl) return ''
+  const base = dtl.replace('T', ' ')
+  return base.length === 16 ? `${base}:00` : base
+}
+async function applyWtFilter() {
+  if (!activeUserId.value) return
+  if (!wtFilterStart.value || !wtFilterEnd.value) { alert('Please select start and end'); return }
+  const qs = new URLSearchParams({ start: toQueryDateTime(wtFilterStart.value), end: toQueryDateTime(wtFilterEnd.value) })
+  const res = await fetch(`/api/workingtime/${activeUserId.value}?${qs.toString()}`)
+  const json = await res.json()
+  wtResultsList.value = Array.isArray(json) ? json : (json && Array.isArray(json.data) ? json.data : [])
+  showWtResults.value = true
+}
+function closeWtFilter() { showWtFilter.value = false }
+function closeWtResults() { showWtResults.value = false }
 const users = ref<User[]>([])
 const username = ref('')
 const email = ref('')
@@ -23,6 +50,12 @@ const wtStart = ref('')
 const wtEnd = ref('')
 const wtCustomStart = ref('') // datetime-local
 const wtCustomEnd = ref('')   // datetime-local
+// WorkingTime filter modal state
+const showWtFilter = ref(false)
+const wtFilterStart = ref('') // datetime-local
+const wtFilterEnd = ref('')   // datetime-local
+const showWtResults = ref(false)
+const wtResultsList = ref<WT[]>([])
 
 // Clocks state for active user
 type Clock = { id: string; time: string; status: boolean }
@@ -528,6 +561,9 @@ async function toggleClockInline() {
             <input type="datetime-local" v-model="wtCustomEnd" class="input" />
             <button class="btn primary" @click="addWT">Add</button>
           </div>
+          <div class="row" style="margin-top:-6px;">
+            <button class="btn" @click="openWtFilter">Filter</button>
+          </div>
           <div class="table-scroll" v-if="wtList.length">
             <table class="table">
               <thead>
@@ -612,6 +648,64 @@ async function toggleClockInline() {
       </div>
       </div>
       <div v-else class="muted placeholder">Select a user to view their dashboard.</div>
+    </div>
+  </div>
+
+  <!-- Working Time Filter Modal -->
+  <div v-if="showWtFilter" class="modal-overlay" @click.self="closeWtFilter">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="wtFilterTitle">
+      <div class="modal-header">
+        <h3 id="wtFilterTitle">Filter Working Time</h3>
+        <button class="btn small ghost" @click="closeWtFilter">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <label style="min-width:80px;">Start</label>
+          <input type="datetime-local" v-model="wtFilterStart" class="input" />
+        </div>
+        <div class="row">
+          <label style="min-width:80px;">End</label>
+          <input type="datetime-local" v-model="wtFilterEnd" class="input" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" @click="closeWtFilter">Close</button>
+        <button class="btn primary" @click="applyWtFilter">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Working Time Results Modal -->
+  <div v-if="showWtResults" class="modal-overlay" @click.self="closeWtResults">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="wtResultsTitle">
+      <div class="modal-header">
+        <h3 id="wtResultsTitle">Filtered Results</h3>
+        <button class="btn small ghost" @click="closeWtResults">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Start</th>
+                <th>End</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in wtResultsList" :key="r.id">
+                <td>{{ formatDT(r.start) }}</td>
+                <td>{{ formatDT(r.end) }}</td>
+              </tr>
+              <tr v-if="wtResultsList.length === 0">
+                <td colspan="2" class="muted">No data in this range</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" @click="closeWtResults">Close</button>
+      </div>
     </div>
   </div>
 </template>
