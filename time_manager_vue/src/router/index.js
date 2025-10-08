@@ -3,10 +3,7 @@ import Login from '@/components/Login.vue';
 import GmOverview from '@/components/gm/GmOverview.vue';
 import ManagerOverview from '@/components/manager/ManagerOverview.vue';
 import EmployeeOverview from '@/components/employee/EmployeeOverview.vue';
-import { isAuthenticated, currentUser, isAuthInitialized, initializeAuth } from '@/composables/useAuthStore.js';
-
-// Initialize auth state when router is created
-initializeAuth();
+import { isAuthenticated, currentUser, isAuthInitialized } from '@/composables/useAuthStore.js';
 
 const routes = [
   {
