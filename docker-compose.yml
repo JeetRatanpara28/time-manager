@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_DB: ${PGDATABASE}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  phoenix:
+    build:
+      context: ./time_manager_phx
+    env_file:
+      - ./.env
+    depends_on:
+      - db
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./time_manager_phx:/app
+    # Entrypoint script handles setup and server start
+
+  frontend:
+    build:
+      context: ./time_manager_vue
+    env_file:
+      - ./.env
+    depends_on:
+      - phoenix
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./time_manager_vue:/app
+      - /app/node_modules
+    # Entrypoint script handles setup and server start
+
+volumes:
+  pgdata:

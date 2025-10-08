@@ -1,0 +1,526 @@
+<template>
+  <div class="manager-profile">
+    <div class="header">
+      <h2>My Profile</h2>
+      <p>Update your personal details and credentials</p>
+    </div>
+
+    <!-- Profile Form -->
+    <div class="profile-form">
+      <div class="form-section">
+        <h3>Personal Information</h3>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input v-model="profileForm.name" type="text" placeholder="Enter your full name">
+          </div>
+
+          <div class="form-group">
+            <label>Email Address</label>
+            <input v-model="profileForm.email" type="email" placeholder="Enter your email">
+          </div>
+
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input v-model="profileForm.phone" type="tel" placeholder="Enter your phone number">
+          </div>
+
+          <div class="form-group">
+            <label>Department</label>
+            <input v-model="profileForm.department" type="text" placeholder="Enter your department">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>Professional Details</h3>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Job Title</label>
+            <input v-model="profileForm.jobTitle" type="text" placeholder="Enter your job title">
+          </div>
+
+          <div class="form-group">
+            <label>Employee ID</label>
+            <input v-model="profileForm.employeeId" type="text" placeholder="Enter your employee ID">
+          </div>
+
+          <div class="form-group">
+            <label>Manager Since</label>
+            <input v-model="profileForm.managerSince" type="date">
+          </div>
+
+          <div class="form-group">
+            <label>Team Size</label>
+            <input v-model="profileForm.teamSize" type="number" min="0" placeholder="Number of team members">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>Security Settings</h3>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Current Password</label>
+            <input v-model="profileForm.currentPassword" type="password" placeholder="Enter current password">
+          </div>
+
+          <div class="form-group">
+            <label>New Password</label>
+            <input v-model="profileForm.newPassword" type="password" placeholder="Enter new password">
+          </div>
+
+          <div class="form-group">
+            <label>Confirm New Password</label>
+            <input v-model="profileForm.confirmPassword" type="password" placeholder="Confirm new password">
+          </div>
+        </div>
+
+        <div class="password-requirements">
+          <p><strong>Password Requirements:</strong></p>
+          <ul>
+            <li>At least 8 characters long</li>
+            <li>Contains at least one uppercase letter</li>
+            <li>Contains at least one lowercase letter</li>
+            <li>Contains at least one number</li>
+            <li>Contains at least one special character</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="form-actions">
+        <button class="cancel-btn" @click="resetForm" :disabled="isLoading">
+          Reset Changes
+        </button>
+        <button class="save-btn" @click="saveProfile" :disabled="isLoading || !hasChanges">
+          <span v-if="isLoading">Saving...</span>
+          <span v-else>Save Changes</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Profile Summary -->
+    <div class="profile-summary">
+      <h3>Profile Summary</h3>
+      <div class="summary-cards">
+        <div class="summary-card">
+          <div class="card-icon">👤</div>
+          <div class="card-content">
+            <h4>{{ profileForm.name || 'Not set' }}</h4>
+            <p>Full Name</p>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="card-icon">📧</div>
+          <div class="card-content">
+            <h4>{{ profileForm.email || 'Not set' }}</h4>
+            <p>Email Address</p>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="card-icon">📱</div>
+          <div class="card-content">
+            <h4>{{ profileForm.phone || 'Not set' }}</h4>
+            <p>Phone Number</p>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <div class="card-icon">👥</div>
+          <div class="card-content">
+            <h4>{{ profileForm.teamSize || 0 }}</h4>
+            <p>Team Members</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted } from 'vue';
+
+// Mock current user data - in real app this would come from the store
+const currentUser = ref({
+  id: 1,
+  name: 'John Manager',
+  email: 'john.manager@company.com',
+  phone: '+1 (555) 123-4567',
+  department: 'Engineering',
+  jobTitle: 'Engineering Manager',
+  employeeId: 'EMP001',
+  managerSince: '2022-03-15',
+  teamSize: 8
+});
+
+const isLoading = ref(false);
+
+// Form data
+const profileForm = ref({
+  name: '',
+  email: '',
+  phone: '',
+  department: '',
+  jobTitle: '',
+  employeeId: '',
+  managerSince: '',
+  teamSize: '',
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+});
+
+// Original data for change detection
+const originalForm = ref({});
+
+const hasChanges = computed(() => {
+  return JSON.stringify(profileForm.value) !== JSON.stringify(originalForm.value);
+});
+
+const resetForm = () => {
+  profileForm.value = { ...originalForm.value };
+};
+
+const saveProfile = async () => {
+  if (!validateForm()) return;
+
+  isLoading.value = true;
+
+  try {
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // In real implementation, this would make an API call to update the profile
+    console.log('Saving profile:', profileForm.value);
+
+    // Update original form data
+    originalForm.value = { ...profileForm.value };
+
+    // Clear password fields
+    profileForm.value.currentPassword = '';
+    profileForm.value.newPassword = '';
+    profileForm.value.confirmPassword = '';
+
+    alert('Profile updated successfully!');
+
+  } catch (error) {
+    console.error('Failed to save profile:', error);
+    alert('Failed to save profile. Please try again.');
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const validateForm = () => {
+  // Basic validation
+  if (!profileForm.value.name?.trim()) {
+    alert('Please enter your full name');
+    return false;
+  }
+
+  if (!profileForm.value.email?.trim()) {
+    alert('Please enter your email address');
+    return false;
+  }
+
+  if (!profileForm.value.email.includes('@')) {
+    alert('Please enter a valid email address');
+    return false;
+  }
+
+  // Password validation
+  if (profileForm.value.newPassword || profileForm.value.confirmPassword) {
+    if (!profileForm.value.currentPassword) {
+      alert('Please enter your current password');
+      return false;
+    }
+
+    if (profileForm.value.newPassword !== profileForm.value.confirmPassword) {
+      alert('New passwords do not match');
+      return false;
+    }
+
+    if (profileForm.value.newPassword.length < 8) {
+      alert('New password must be at least 8 characters long');
+      return false;
+    }
+
+    // Basic password strength check
+    const hasUpperCase = /[A-Z]/.test(profileForm.value.newPassword);
+    const hasLowerCase = /[a-z]/.test(profileForm.value.newPassword);
+    const hasNumbers = /\d/.test(profileForm.value.newPassword);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(profileForm.value.newPassword);
+
+    if (!hasUpperCase || !hasLowerCase || !hasNumbers || !hasSpecialChar) {
+      alert('New password does not meet requirements');
+      return false;
+    }
+  }
+
+  return true;
+};
+
+onMounted(() => {
+  // Initialize form with current user data
+  profileForm.value = {
+    name: currentUser.value.name,
+    email: currentUser.value.email,
+    phone: currentUser.value.phone,
+    department: currentUser.value.department,
+    jobTitle: currentUser.value.jobTitle,
+    employeeId: currentUser.value.employeeId,
+    managerSince: currentUser.value.managerSince,
+    teamSize: currentUser.value.teamSize,
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  };
+
+  // Store original data
+  originalForm.value = { ...profileForm.value };
+});
+</script>
+
+<style scoped>
+.manager-profile {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: 2rem;
+}
+
+.header h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.5rem;
+}
+
+.header p {
+  color: #64748b;
+  font-size: 1.1rem;
+}
+
+.profile-form {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  margin-bottom: 2rem;
+}
+
+.form-section {
+  margin-bottom: 2rem;
+}
+
+.form-section:last-child {
+  margin-bottom: 0;
+}
+
+.form-section h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.form-group input {
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group input:disabled {
+  background: #f9fafb;
+  cursor: not-allowed;
+}
+
+.password-requirements {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.password-requirements p {
+  margin: 0 0 0.5rem 0;
+  font-weight: 600;
+  color: #374151;
+}
+
+.password-requirements ul {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.password-requirements li {
+  color: #64748b;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.cancel-btn {
+  padding: 0.75rem 1.5rem;
+  border: 1px solid #d1d5db;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.cancel-btn:hover:not(:disabled) {
+  background: #f9fafb;
+}
+
+.cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.save-btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.save-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.profile-summary {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.profile-summary h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 1.5rem;
+}
+
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.summary-card {
+  background: #f8fafc;
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.card-icon {
+  font-size: 2rem;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 12px;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.card-content h4 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 0.25rem 0;
+}
+
+.card-content p {
+  color: #64748b;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .manager-profile {
+    padding: 1rem;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .cancel-btn,
+  .save-btn {
+    width: 100%;
+  }
+}
+</style>

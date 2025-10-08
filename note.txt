@@ -1,0 +1,184 @@
+# Time Manager - Development Notes
+# Last Updated: 2025-10-05
+
+## 🚀 QUICK START COMMANDS
+
+### Start Both Servers:
+# Backend (Phoenix API - Port 4000)
+cd /home/jeet/Desktop/time\ manager/time_manager_phx
+mix phx.server &
+
+# Frontend (Vue.js Preview - Port 4173)
+cd /home/jeet/Desktop/time\ manager/time_manager_vue
+npm run preview &
+
+### Kill All Development Servers:
+pkill -f "phx.server" && pkill -f "vite" && sleep 2
+
+---
+
+## 🔧 PORT MANAGEMENT COMMANDS
+
+### Check Port Usage:
+lsof -i :4000    # Phoenix API server
+lsof -i :4173    # Vue.js preview server
+lsof -i :5173    # Vue.js dev server
+
+### Free Specific Ports:
+# Kill Phoenix server (port 4000)
+kill -9 $(lsof -ti :4000)
+
+# Kill Vue preview server (port 4173)
+kill -9 $(lsof -ti :4173)
+
+# Kill Vue dev server (port 5173)
+kill -9 $(lsof -ti :5173)
+
+### Free All Development Ports:
+pkill -f "phx.server" && pkill -f "vite" && sleep 2
+
+---
+
+## 🌐 API ENDPOINTS (Phoenix Backend)
+
+### Base URL:
+http://localhost:4000/api
+
+### User Management:
+GET    /api/users                    # List all users
+GET    /api/users/:id               # Get user by ID
+POST   /api/users                   # Create new user
+PUT    /api/users/:id               # Update user
+DELETE /api/users/:id               # Delete user
+
+### Working Time Management:
+GET    /api/workingtimes            # List all working times
+GET    /api/workingtimes/:id        # Get working time by ID
+POST   /api/workingtimes            # Create working time (Clock In)
+PUT    /api/workingtimes/:id        # Update working time (Clock Out)
+DELETE /api/workingtimes/:id        # Delete working time
+
+### Special Endpoints:
+GET    /api/workingtimes/today/:user_id  # Get today's working times for user
+GET    /api/dashboard/stats              # Get dashboard statistics
+
+---
+
+## 🧪 API TESTING EXAMPLES
+
+### Clock In (Create Working Time):
+curl -X POST http://localhost:4000/api/workingtimes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "working_time": {
+      "user_id": "95814b5a-5784-4196-a40b-23274d7426d3",
+      "start_time": "2025-10-05T09:00:00Z",
+      "date": "2025-10-05"
+    }
+  }'
+
+### Clock Out (Update Working Time):
+curl -X PUT http://localhost:4000/api/workingtimes/{id} \
+  -H "Content-Type: application/json" \
+  -d '{
+    "working_time": {
+      "end_time": "2025-10-05T17:30:00Z"
+    }
+  }'
+
+### Get All Working Times:
+curl -s http://localhost:4000/api/workingtimes
+
+### Get Today's Working Times:
+curl -s http://localhost:4000/api/workingtimes/today/{user_id}
+
+### Get Dashboard Stats:
+curl -s http://localhost:4000/api/dashboard/stats
+
+---
+
+## 📊 DATABASE STRUCTURE
+
+### Users Table:
+- id (UUID)
+- name (string)
+- username (string)
+- email (string)
+- role (string: employee, manager, general_manager)
+- department (string)
+- phone (string)
+- status (string: online, offline)
+- bio (text)
+- join_date (datetime)
+
+### Working Times Table:
+- id (UUID)
+- user_id (UUID, foreign key)
+- date (date)
+- clock_in (string: ISO datetime)
+- clock_out (string: ISO datetime)
+- break_start (string: ISO datetime)
+- break_end (string: ISO datetime)
+- total_hours (decimal)
+- overtime (decimal)
+- status (string: active, complete, incomplete)
+
+---
+
+## 🐛 TROUBLESHOOTING
+
+### Phoenix Server Won't Start:
+1. Check if port 4000 is free: lsof -i :4000
+2. Kill any existing process: kill -9 $(lsof -ti :4000)
+3. Start server: mix phx.server
+
+### Database Issues:
+# Reset database
+cd /home/jeet/Desktop/time\ manager/time_manager_phx
+mix ecto.reset
+
+### Vue.js Issues:
+# Install dependencies
+cd /home/jeet/Desktop/time\ manager/time_manager_vue
+npm install
+
+# Start preview server
+npm run preview
+
+---
+
+## 📝 IMPORTANT NOTES
+
+- Backend uses PostgreSQL database
+- Frontend uses Vue.js 3 with Vite
+- All time calculations are done automatically on clock out
+- Working times are stored in UTC ISO format
+- Overtime is calculated as hours > 8 per day
+- Fixed null values for total_hours, clock_in, clock_out, and overtime
+- API now properly calculates and returns all time-related fields
+
+---
+
+## 🎯 RECENT FIXES
+
+### Fixed Null Values Issue:
+- Modified WorkingTime.changeset to properly handle datetime mappings
+- Added automatic calculation of total_hours and overtime
+- Fixed schema type consistency (string fields for database compatibility)
+- All API responses now include calculated values
+
+### Database Migration:
+- Added new fields: clock_in, clock_out, break_start, break_end, total_hours, overtime, status
+- All fields use appropriate data types for PostgreSQL
+- Existing data compatibility maintained
+
+---
+
+## 🔗 USEFUL LINKS
+
+- Phoenix API Base: http://localhost:4000/api
+- Vue.js Preview: http://localhost:4173
+- Vue.js Dev: http://localhost:5173
+- PostgreSQL Database: localhost:5432
+
+# End of Notes
