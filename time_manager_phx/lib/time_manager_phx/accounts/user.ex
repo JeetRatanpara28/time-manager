@@ -55,9 +55,15 @@ defmodule TimeManagerPhx.Accounts.User do
   defp put_password_hash(changeset), do: changeset
 
   # Verify password
-  def valid_password?(%TimeManagerPhx.Accounts.User{password_hash: hashed_password}, password) do
+  # Only call Pbkdf2.verify_pass when we have a binary password_hash and
+  # a binary password. If the stored hash is missing (nil) or input is not
+  # a binary, fall back to no_user_verify to avoid function clause errors
+  # inside the pbkdf2 library (which calls String.split/3 on the hash).
+  def valid_password?(%TimeManagerPhx.Accounts.User{password_hash: hashed_password}, password)
+      when is_binary(hashed_password) and is_binary(password) do
     Pbkdf2.verify_pass(password, hashed_password)
   end
 
+  # Safe fallback when no valid hash/password available
   def valid_password?(_, _), do: Pbkdf2.no_user_verify()
 end
