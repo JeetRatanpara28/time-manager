@@ -10,7 +10,7 @@
       <div class="kpi-card">
         <div class="kpi-icon">⏰</div>
         <div class="kpi-content">
-          <h4>{{ weeklyHours }}</h4>
+          <h4>{{ weeklyHoursDisplay }}</h4>
           <p>Hours This Week</p>
         </div>
       </div>
@@ -18,7 +18,7 @@
       <div class="kpi-card">
         <div class="kpi-icon">📅</div>
         <div class="kpi-content">
-          <h4>{{ monthlyHours }}</h4>
+          <h4>{{ monthlyHoursDisplay }}</h4>
           <p>Hours This Month</p>
         </div>
       </div>
@@ -63,14 +63,14 @@
     <div class="activity-section">
       <h3>Recent Clock History</h3>
       <div class="activity-list">
-        <div v-for="log in recentLogs.slice(0, 10)" :key="log.id" class="activity-item">
+        <div v-for="log in recentLogsDisplay" :key="log.id" class="activity-item">
           <div class="activity-date">
             {{ formatDate(log.date) }}
           </div>
           <div class="activity-details">
             <div class="activity-times">
               <span class="time-range">{{ log.clockIn }} - {{ log.clockOut || 'Active' }}</span>
-              <span class="total-hours">{{ log.totalHours }}h</span>
+              <span class="total-hours">{{ log.totalHours || 0 }}h</span>
             </div>
             <div class="activity-status" :class="log.status">
               {{ log.status === 'active' ? 'In Progress' : 'Completed' }}
@@ -78,7 +78,7 @@
           </div>
         </div>
 
-        <div v-if="recentLogs.length === 0" class="no-activity">
+        <div v-if="!recentLogsDisplay || recentLogsDisplay.length === 0" class="no-activity">
           <p>No recent activity</p>
         </div>
       </div>
@@ -129,8 +129,28 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { weeklyHours, monthlyHours, recentLogs } from '@/composables/useManagerStore.js';
+import { computed, ref, onMounted } from 'vue';
+
+// We need to handle the async loading of the manager store
+const weeklyHours = ref(null);
+const monthlyHours = ref(null);
+const recentLogs = ref(null);
+
+// Load the store data when component mounts
+onMounted(async () => {
+  try {
+    const managerStore = await import('@/composables/useManagerStore.js');
+    
+    // Wait a bit for the store to initialize
+    setTimeout(() => {
+      weeklyHours.value = managerStore.weeklyHours;
+      monthlyHours.value = managerStore.monthlyHours;
+      recentLogs.value = managerStore.recentLogs;
+    }, 100);
+  } catch (err) {
+    console.error('Failed to load manager store:', err);
+  }
+});
 
 // Mock data for demonstration
 const weekData = [
@@ -143,8 +163,25 @@ const weekData = [
   { day: 'Sun', hours: 0, percentage: 0 }
 ];
 
+// Safe computed properties that handle null values
+const weeklyHoursDisplay = computed(() => {
+  if (!weeklyHours.value) return '0.0';
+  return weeklyHours.value.value || '0.0';
+});
+
+const monthlyHoursDisplay = computed(() => {
+  if (!monthlyHours.value) return '0.0';
+  return monthlyHours.value.value || '0.0';
+});
+
+const recentLogsDisplay = computed(() => {
+  if (!recentLogs.value) return [];
+  const logs = recentLogs.value.value || [];
+  return logs.slice(0, 10);
+});
+
 const averageDaily = computed(() => {
-  const total = parseFloat(weeklyHours.value);
+  const total = parseFloat(weeklyHoursDisplay.value) || 0;
   const daysWorked = weekData.filter(d => d.hours > 0).length;
   return daysWorked > 0 ? (total / daysWorked).toFixed(1) : '0.0';
 });
@@ -160,7 +197,7 @@ const workedDaysThisMonth = computed(() => {
 });
 
 const averageHoursPerDay = computed(() => {
-  const total = parseFloat(monthlyHours.value);
+  const total = parseFloat(monthlyHoursDisplay.value) || 0;
   const days = workedDaysThisMonth.value;
   return days > 0 ? (total / days).toFixed(1) : '0.0';
 });
@@ -177,6 +214,8 @@ const consistencyScore = computed(() => {
 });
 
 const formatDate = (dateString) => {
+  if (!dateString) return 'Unknown';
+  
   const date = new Date(dateString);
   const today = new Date();
   const yesterday = new Date(today);
@@ -201,12 +240,13 @@ const exportPersonalLogs = (period) => {
 
   // Mock CSV export for demonstration
   const headers = ['Date', 'Clock In', 'Clock Out', 'Total Hours', 'Status'];
-  const mockData = recentLogs.value.map(log => [
-    log.date,
+  const logs = recentLogsDisplay.value || [];
+  const mockData = logs.map(log => [
+    log.date || '',
     log.clockIn || '',
     log.clockOut || '',
     log.totalHours || '',
-    log.status
+    log.status || ''
   ]);
 
   const csvContent = [headers, ...mockData].map(row =>
@@ -443,7 +483,8 @@ const exportPersonalLogs = (period) => {
   color: #166534;
 }
 
-.activity-status.complete {
+.activity-status.complete,
+.activity-status.completed {
   background: #dbeafe;
   color: #1e40af;
 }
