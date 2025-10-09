@@ -147,7 +147,153 @@ const saveState = () => {
 
 // Watch for navigation changes and save state + update URL
 watch(activePanel, () => {
-  saveState();
+  saveState();// Add this function at the top of your <script setup> section in App.vue, after the imports
+
+// Helper function to normalize role names
+const normalizeRole = (role) => {
+  const roleMap = {
+    'general_manager': 'gm',
+    'gm': 'gm',
+    'manager': 'manager',
+    'employee': 'employee'
+  };
+  return roleMap[role] || role;
+};
+
+// Update the onMounted function in App.vue
+onMounted(async () => {
+  // Initialize authentication state first
+  await initializeAuth();
+
+  // Initialize routing first
+  initializeRouting();
+
+  // Then load from localStorage as fallback
+  loadSavedState();
+
+  // If user is authenticated, set the correct dashboard based on their role
+  if (isAuthenticated.value && currentUser.value) {
+    const userRole = normalizeRole(currentUser.value.role);
+
+    // Define allowed panels for each role
+    const allowedPanels = {
+      'gm': ['gm'],
+      'manager': ['manager'],
+      'employee': ['employee']
+    };
+
+    // Check if current activePanel is allowed for this user's role
+    const userAllowedPanels = allowedPanels[userRole] || [];
+    if (!userAllowedPanels.includes(activePanel.value)) {
+      // Set to the first allowed panel for this role
+      activePanel.value = userAllowedPanels[0] || 'gm';
+    }
+
+    // Set the appropriate panel based on user role
+    if (userRole === 'gm' && activePanel.value !== 'gm') {
+      activePanel.value = 'gm';
+      activeGmView.value = 'overview';
+    } else if (userRole === 'manager' && activePanel.value !== 'manager') {
+      activePanel.value = 'manager';
+      activeManagerView.value = 'monitoring';
+    } else if (userRole === 'employee' && activePanel.value !== 'employee') {
+      activePanel.value = 'employee';
+      activeEmployeeView.value = 'overview';
+    }
+
+    // Initialize data for their role
+    if (userRole === 'gm') {
+      await initializeData();
+    } else if (userRole === 'manager') {
+      await initializeManagerData();
+    } else if (userRole === 'employee') {
+      await initializeEmployeeData();
+    }
+  }
+});
+
+// Update the switchToPanel function
+const switchToPanel = async (panel) => {
+  // If user is not authenticated, redirect to login
+  if (!isAuthenticated.value) {
+    return;
+  }
+
+  // Check if user has permission to access this panel
+  const userRole = normalizeRole(currentUser.value?.role);
+  const allowedPanels = {
+    'gm': ['gm'],
+    'manager': ['manager'],
+    'employee': ['employee']
+  };
+
+  if (!allowedPanels[userRole]?.includes(panel)) {
+    console.warn(`User with role ${userRole} attempted to access ${panel} dashboard`);
+    return;
+  }
+
+  activePanel.value = panel;
+
+  if (panel === 'manager') {
+    // Only set default view if no saved state exists
+    if (!localStorage.getItem('activeManagerView')) {
+      activeManagerView.value = 'monitoring';
+    }
+    // Load manager data when switching to manager panel
+    await initializeManagerData();
+  } else if (panel === 'employee') {
+    // Only set default view if no saved state exists
+    if (!localStorage.getItem('activeEmployeeView')) {
+      activeEmployeeView.value = 'overview';
+    }
+    // Load employee data when switching to employee panel
+    await initializeEmployeeData();
+  } else if (panel === 'gm') {
+    // Only set default view if no saved state exists
+    if (!localStorage.getItem('activeGmView')) {
+      activeGmView.value = 'overview';
+    }
+    await initializeData();
+  }
+
+  // URL and state are automatically updated via watchers
+};
+
+// Update the template section to use normalizeRole
+// Replace the v-if conditions in the template with:
+/*
+<button
+  v-if="normalizeRole(currentUser?.role) === 'gm'"
+  :class="['tab', { active: activePanel === 'gm' }]"
+  @click="switchToPanel('gm')"
+  :disabled="!isAuthenticated"
+>
+  GM Dashboard
+</button>
+<button
+  v-if="normalizeRole(currentUser?.role) === 'manager'"
+  :class="['tab', { active: activePanel === 'manager' }]"
+  @click="switchToPanel('manager')"
+  :disabled="!isAuthenticated"
+>
+  Manager Dashboard
+</button>
+<button
+  v-if="normalizeRole(currentUser?.role) === 'employee'"
+  :class="['tab', { active: activePanel === 'employee' }]"
+  @click="switchToPanel('employee')"
+  :disabled="!isAuthenticated"
+>
+  Employee Dashboard
+</button>
+*/
+
+// And in the main content sections:
+/*
+<section v-else-if="isAuthenticated && normalizeRole(currentUser?.role) === 'gm'" class="panel gm-panel">
+<section v-else-if="isAuthenticated && normalizeRole(currentUser?.role) === 'manager'" class="panel manager-panel">
+<section v-else-if="isAuthenticated && normalizeRole(currentUser?.role) === 'employee'" class="panel employee-panel">
+*/
   updateUrl();
 });
 watch(activeGmView, () => {

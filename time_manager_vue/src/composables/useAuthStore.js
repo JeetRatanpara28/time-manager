@@ -36,6 +36,16 @@ const shouldRefreshToken = (token) => {
   }
 };
 
+// Map backend role names to frontend role names
+const mapBackendRoleToFrontend = (backendRole) => {
+  const roleMap = {
+    'general_manager': 'gm',
+    'manager': 'manager',
+    'employee': 'employee'
+  };
+  return roleMap[backendRole] || backendRole;
+};
+
 // Authentication functions
 export const login = async (email, password) => {
   isLoading.value = true;
@@ -59,12 +69,12 @@ export const login = async (email, password) => {
       authToken.value = response.token;
       refreshToken.value = response.refreshToken;
 
-      // Store current user info
+      // Store current user info - map backend role to frontend role
       currentUser.value = {
         id: response.user.id,
         name: response.user.name,
         email: response.user.email,
-        role: response.user.role,
+        role: mapBackendRoleToFrontend(response.user.role),
         department: response.user.department
       };
 
@@ -82,6 +92,11 @@ export const login = async (email, password) => {
 
       // Set up token refresh timer
       setupTokenRefresh();
+
+      // Update API service with the new token
+      const { getApiService } = await import('@/services/apiService.js');
+      const apiServiceInstance = getApiService();
+      apiServiceInstance.setAuthToken(authToken.value);
 
       return { success: true, user: currentUser.value };
     } else {
@@ -101,6 +116,11 @@ export const logout = async () => {
   isLoading.value = true;
 
   try {
+    // Get API service and clear token
+    const { getApiService } = await import('@/services/apiService.js');
+    const apiService = getApiService();
+    apiService.clearAuthToken();
+
     // Clear tokens and user data
     authToken.value = null;
     refreshToken.value = null;
@@ -172,6 +192,9 @@ const refreshTokenNow = async () => {
       localStorage.setItem('authToken', authToken.value);
       localStorage.setItem('refreshToken', refreshToken.value);
 
+      // Update API service with the new token
+      apiService.setAuthToken(authToken.value);
+
       console.log('💾 New tokens saved to localStorage');
     } else {
       console.warn('⚠️ Refresh response missing tokens:', response);
@@ -190,6 +213,11 @@ const refreshTokenNow = async () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('currentUser');
+
+    // Clear token from API service
+    const { getApiService } = await import('@/services/apiService.js');
+    const apiService = getApiService();
+    apiService.clearAuthToken();
 
     // Don't redirect here, let the router guard handle it
     console.log('🚪 User will be redirected to login');
@@ -218,6 +246,11 @@ export const initializeAuth = async () => {
         refreshToken.value = savedRefreshToken;
         currentUser.value = JSON.parse(savedUser);
         isAuthenticated.value = true;
+
+        // Set token in API service
+        const { getApiService } = await import('@/services/apiService.js');
+        const apiService = getApiService();
+        apiService.setAuthToken(authToken.value);
 
         // Set up token refresh
         setupTokenRefresh();
@@ -261,26 +294,6 @@ export const initializeAuth = async () => {
       isAuthInitialized: isAuthInitialized.value
     });
   }
-};
-
-// API request interceptor to add auth token
-export const authenticatedRequest = async (endpoint, options = {}) => {
-  const { getApiService } = await import('@/services/apiService.js');
-  const apiService = getApiService();
-
-  // Add auth token to headers if available
-  const headers = {
-    ...options.headers,
-  };
-
-  if (authToken.value && !isTokenExpired(authToken.value)) {
-    headers['Authorization'] = `Bearer ${authToken.value}`;
-  }
-
-  return apiService.request(endpoint, {
-    ...options,
-    headers,
-  });
 };
 
 // Check if user has specific role
