@@ -6,11 +6,10 @@ on:
       - main
 
 jobs:
-  ci-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     env:
-      # Fill these with your secrets in GitHub Actions
       DATABASE_URL: postgres://${{ secrets.CI_DB_USER }}:${{ secrets.CI_DB_PASS }}@localhost:5432/${{ secrets.CI_DB_NAME }}
       MIX_ENV: prod
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -27,11 +26,14 @@ jobs:
 
       - name: Install Hex + Rebar
         run: |
+          cd time_manager_phx
           mix local.hex --force
           mix local.rebar --force
 
       - name: Install dependencies
-        run: mix deps.get
+        run: |
+          cd time_manager_phx
+          mix deps.get
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
