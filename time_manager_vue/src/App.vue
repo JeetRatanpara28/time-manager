@@ -475,7 +475,7 @@ const clearStorage = () => {
   <div class="app-shell">
     <header class="app-header">
       <div class="header-left">
-        <h1>Time Manager Pro</h1>
+        <h1>Time Manager Pro1</h1>
         <div v-if="isAuthenticated && currentUser" class="user-info">
           <span class="user-name">{{ currentUser.name }}</span>
           <span class="user-role">({{ getUserRoleDisplay }})</span>

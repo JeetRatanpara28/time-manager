@@ -2,7 +2,7 @@
   <div class="login-page">
     <div class="login-container">
       <div class="login-header">
-        <h1>Time Manager Pro</h1>
+        <h1>Time Manager Pro1</h1>
         <p>Welcome back! Please sign in to your account</p>
       </div>
 
