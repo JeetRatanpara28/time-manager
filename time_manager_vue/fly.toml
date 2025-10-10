@@ -1,0 +1,30 @@
+app = "time-manager-vue"
+primary_region = "cdg"
+
+kill_signal = "SIGTERM"
+kill_timeout = 5
+
+[build.args]
+  VITE_API_URL = "https://time-manager-phx.fly.dev"
+
+[env]
+  VITE_API_URL = "https://time-manager-phx.fly.dev"
+
+[[services]]
+  internal_port = 5173  # Match the port your app listens on
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.http_checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/"
