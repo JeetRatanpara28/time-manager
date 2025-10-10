@@ -1,3 +1,10 @@
+name: CI and Deploy Phoenix to Fly.io
+
+on:
+  push:
+    branches:
+      - main
+
 jobs:
   ci-and-deploy:
     runs-on: ubuntu-latest
