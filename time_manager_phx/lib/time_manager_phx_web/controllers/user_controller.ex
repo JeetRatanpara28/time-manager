@@ -24,12 +24,12 @@ defmodule TimeManagerPhxWeb.UserController do
   end
 
   def show(conn, %{"id" => id}) do
-    user = Accounts.get_user!(id)
+    user = Accounts.get_user(id)
     render(conn, :show, user: user)
   end
 
   def update(conn, %{"id" => id, "user" => user_params}) do
-    user = Accounts.get_user!(id)
+    user = Accounts.get_user(id)
 
     with {:ok, %User{} = user} <- Accounts.update_user(user, user_params) do
       render(conn, :show, user: user)
@@ -53,7 +53,7 @@ defmodule TimeManagerPhxWeb.UserController do
   end
 
   def delete(conn, %{"id" => id}) do
-    user = Accounts.get_user!(id)
+    user = Accounts.get_user(id)
     # Delete dependent records first to avoid FK constraint errors
     TimeTracking.delete_all_for_user(id)
     with {:ok, %User{}} <- Accounts.delete_user(user) do

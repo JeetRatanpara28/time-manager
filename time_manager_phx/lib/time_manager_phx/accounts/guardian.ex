@@ -41,4 +41,26 @@ defmodule TimeManagerPhx.Accounts.Guardian do
     {:ok, refresh_token, _claims} = encode_and_sign(user, %{}, token_type: "refresh")
     {:ok, refresh_token}
   end
+
+  # Custom function to refresh access tokens
+  def refresh_access_token(refresh_token) do
+    case decode_and_verify(refresh_token) do
+      {:ok, claims} ->
+        case resource_from_claims(claims) do
+          {:ok, user} ->
+            {:ok, new_token, new_claims} = encode_and_sign(user, %{}, token_type: "access")
+            {:ok, new_token, new_claims}
+          error ->
+            error
+        end
+      error ->
+        error
+    end
+  end
+
+  # Alternative: Use Guardian's built-in exchange with proper options
+  def exchange_token(refresh_token, options \\ []) do
+    # Use Guardian's built-in exchange function
+    exchange(refresh_token, ["refresh"], "access", options)
+  end
 end
