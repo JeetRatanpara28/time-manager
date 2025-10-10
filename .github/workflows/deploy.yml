@@ -11,16 +11,16 @@ jobs:
 
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      CI_DB_USER: ${{ secrets.CI_PGUSER }}
-      CI_DB_PASS: ${{ secrets.CI_PGPASSWORD }}
-      DATABASE_URL: postgres://${{ secrets.CI_PGUSER }}:${{ secrets.CI_PGPASSWORD }}@time-manager-db.flycast:5432
+      CI_DB_USER: ${{ secrets.PGUSER }}
+      CI_DB_PASS: ${{ secrets.PGPASSWORD }}
+      DATABASE_URL: postgres://${{ secrets.PGUSER }}:${{ secrets.PGPASSWORD }}@time-manager-db.flycast:5432
 
     services:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_USER: ci_user
-          POSTGRES_PASSWORD: ci_pass
+          POSTGRES_USER: PGUSER
+          POSTGRES_PASSWORD: PGPASSWORD
           POSTGRES_DB: time_manager_test
         ports:
           - 5432:5432
