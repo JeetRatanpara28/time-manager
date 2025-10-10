@@ -26,7 +26,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres"
+          --health-cmd "pg_isready -U $CI_DB_USER"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -50,6 +50,15 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
         working-directory: time_manager_phx
+
+      - name: Wait for Postgres to be ready
+        run: |
+          until pg_isready -h localhost -p 5432 -U $CI_DB_USER; do
+            echo "Waiting for Postgres..."
+            sleep 2
+          done
+        env:
+          PGPASSWORD: $CI_DB_PASS
 
       - name: Setup DB
         run: |
