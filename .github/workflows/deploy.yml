@@ -1,4 +1,4 @@
-name: CI & Deploy Phoenix to Fly.io
+name: CI and Deploy Phoenix to Fly.io
 
 on:
   push:
@@ -13,19 +13,19 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_USER: ci_user
-          POSTGRES_PASSWORD: ci_pass
-          POSTGRES_DB: time_manager_test
+          POSTGRES_USER: ${{ secrets.CI_DB_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.CI_DB_PASS }}
+          POSTGRES_DB: time-manager-db
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U ci_user"
+          --health-cmd "pg_isready -U ${{ secrets.CI_DB_USER }}"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
     env:
-      DATABASE_URL: postgres://ci_user:ci_pass@localhost:5432/time_manager_test
+      DATABASE_URL: postgres://${{ secrets.CI_DB_USER }}:${{ secrets.CI_DB_PASS }}@localhost:5432/time_manager_test
       MIX_ENV: test
 
     steps:
@@ -49,6 +49,8 @@ jobs:
         working-directory: time_manager_phx
 
       - name: Setup DB
+        env:
+          DATABASE_URL: postgres://${{ secrets.CI_DB_USER }}:${{ secrets.CI_DB_PASS }}@localhost:5432/time_manager_test
         run: |
           mix ecto.create
           mix ecto.migrate
