@@ -11,10 +11,9 @@ jobs:
 
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      CI_DB_USER: ${{ secrets.CI_DB_USER }}
-      CI_DB_PASS: ${{ secrets.CI_DB_PASS }}
-      DATABASE_URL: postgres://${{ secrets.CI_DB_USER }}:${{ secrets.CI_DB_PASS }}@localhost:5432/time_manager_test
-      MIX_ENV: test
+      CI_DB_USER: ${{ secrets.CI_PGUSER }}
+      CI_DB_PASS: ${{ secrets.CI_PGPASSWORD }}
+      DATABASE_URL: postgres://${{ secrets.CI_PGUSER }}:${{ secrets.CI_PGPASSWORD }}@time-manager-db.flycast:5432
 
     services:
       postgres:
