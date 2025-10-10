@@ -38,20 +38,16 @@ if config_env() == :prod do
 
   # === HOST AND PORT CONFIGURATION ===
   host = System.get_env("PHX_HOST") || System.get_env("FLY_APP_NAME") || "localhost"
-  port = String.to_integer(System.get_env("PORT") || "8080")
 
   config :time_manager_phx, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   # === ENDPOINT CONFIGURATION ===
+  port = String.to_integer(System.get_env("PORT") || "8080")
   config :time_manager_phx, TimeManagerPhxWeb.Endpoint,
-    url: [host: host, port: 443, scheme: "https"],
-    http: [
-      # Bind on all interfaces (IPv4)
-      ip: {0, 0, 0, 0},
-      port: port
-    ],
-    secret_key_base: secret_key_base,
-    server: true
+  http: [ip: {0,0,0,0}, port: port],
+  url: [host: host, port: port, scheme: "https"],
+  secret_key_base: secret_key_base,
+  server: true
 
   # === OPTIONAL: SSL CONFIGURATION ===
   #
