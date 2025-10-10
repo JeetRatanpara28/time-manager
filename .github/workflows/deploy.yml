@@ -1,4 +1,4 @@
-name: Deploy your custom Docker image to Fly.io
+name: Deploy Phoenix to Fly.io
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    name: Build and Deploy custom Docker image to Fly.io
+    name: Build and Deploy Phoenix App to Fly.io
 
     steps:
       - name: Checkout code
@@ -23,17 +23,20 @@ jobs:
         run: |
           echo "${FLY_API_TOKEN}" | docker login registry.fly.io -u x --password-stdin
 
-      - name: Build your custom Docker image
+      - name: Build Phoenix Docker image
         run: |
-          docker build -t registry.fly.io/time-manager-phx:latest .
+          docker build -t registry.fly.io/time-manager-phx:latest ./time_manager_phx
 
-      - name: Push your image to Fly.io registry
+      - name: Push Docker image
         run: |
           docker push registry.fly.io/time-manager-phx:latest
 
-      - name: Deploy your custom image
+      - name: Set up Fly.io CLI
         uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          flyctl deploy --image registry.fly.io/time-manager-phx:latest
+          cd time_manager_phx
+          flyctl deploy --image registry.fly.io/time-manager-phx:latest --remote-only
