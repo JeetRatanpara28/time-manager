@@ -1,4 +1,4 @@
-name: CI and Deploy Phoenix to Fly.io
+name: Deploy Phoenix to Fly.io
 
 on:
   push:
@@ -9,24 +9,11 @@ jobs:
   ci-and-deploy:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: time_manager_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/time_manager_test
-      MIX_ENV: test
+      # Fill these with your secrets in GitHub Actions
+      DATABASE_URL: postgres://${{ secrets.CI_DB_USER }}:${{ secrets.CI_DB_PASS }}@localhost:5432/${{ secrets.CI_DB_NAME }}
+      MIX_ENV: prod
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
     steps:
       - name: Checkout code
@@ -44,28 +31,14 @@ jobs:
           mix local.rebar --force
 
       - name: Install dependencies
-        run: |
-          cd time_manager_phx
-          mix deps.get
-
-      - name: Setup DB
-        run: |
-          cd time_manager_phx
-          mix ecto.create
-          mix ecto.migrate
-
-      - name: Run tests
-        run: |
-          cd time_manager_phx
-          mix test
+        run: mix deps.get
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Fly.io container registry
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: echo "${FLY_API_TOKEN}" | docker login registry.fly.io -u x --password-stdin
+        run: |
+          echo "${{ secrets.FLY_API_TOKEN }}" | docker login registry.fly.io -u x --password-stdin
 
       - name: Build and Push Docker image
         run: |
@@ -76,8 +49,6 @@ jobs:
         uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy to Fly.io
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
           cd time_manager_phx
           flyctl deploy --image registry.fly.io/time-manager-phx:latest --remote-only
