@@ -283,7 +283,38 @@ export const getUserRoleDisplay = computed(() => {
   return roleDisplayMap[role] || role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
 });
 
-// Cleanup on app unmount
-export const cleanupAuth = () => {
-  clearTokenRefresh();
+// useAuthStore composable function
+export const useAuthStore = () => {
+  return {
+    // Reactive state
+    isAuthenticated,
+    currentUser,
+    authToken,
+    refreshToken,
+    isLoading,
+    error,
+    isAuthInitialized,
+
+    // Functions
+    login,
+    logout,
+    initializeAuth,
+    hasRole,
+    getUserDisplayName,
+    getUserRoleDisplay,
+    cleanupAuth,
+
+    // Additional helper methods
+    fetchCurrentUser: async () => {
+      // This is a placeholder - you might want to add a method to refresh user data
+      return currentUser.value;
+    },
+
+    // Computed properties
+    user: currentUser,
+    isLoggedIn: isAuthenticated,
+    userRole: computed(() => currentUser.value?.role),
+    userName: getUserDisplayName,
+    roleDisplay: getUserRoleDisplay,
+  };
 };
