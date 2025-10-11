@@ -283,6 +283,28 @@ export const getUserRoleDisplay = computed(() => {
   return roleDisplayMap[role] || role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
 });
 
+// Cleanup auth state (useful for error handling and forced logouts)
+const cleanupAuth = async () => {
+  console.log('🧹 Cleaning up auth state');
+  
+  // Clear tokens and user
+  authToken.value = null;
+  refreshToken.value = null;
+  currentUser.value = null;
+  isAuthenticated.value = false;
+  
+  // Clear session storage
+  clearAuthState();
+  
+  // Clear token refresh timer
+  clearTokenRefresh();
+  
+  // Clear API service token
+  const { getApiService } = await import('@/services/apiService.js');
+  const apiService = getApiService();
+  apiService.clearAuthToken();
+};
+
 // useAuthStore composable function
 export const useAuthStore = () => {
   return {
