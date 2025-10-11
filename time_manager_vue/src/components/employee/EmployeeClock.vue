@@ -11,11 +11,13 @@
       <p>Loading employee data...</p>
     </div>
 
-    <!-- Universal Clock Control Component -->
-    <ClockControl v-else user-role="employee" />
+    <!-- Clock Control Component -->
+    <div v-else class="clock-section">
+      <ClockControl user-role="employee" />
+    </div>
 
-    <!-- Employee-specific content can go here -->
-    <div class="employee-specific-content">
+    <!-- Recent Activity -->
+    <div v-if="currentUser" class="employee-specific-content">
       <div class="recent-activity">
         <h2>Recent Activity</h2>
         <div class="activity-list">
@@ -33,18 +35,19 @@
 </template>
 
 <script setup>
-import { computed, onMounted, watch } from 'vue';
-import { recentLogs, initializeEmployeeData, currentUser, todaysLog } from '@/composables/useEmployeeStore.js';
+import { onMounted } from 'vue';
+import { recentLogs, initializeEmployeeData, currentUser } from '@/composables/useEmployeeStore.js';
 import ClockControl from '@/components/shared/ClockControl.vue';
 
-onMounted(async () => {
-  // Initialize employee data (keeping legacy compatibility)
-  try {
-    await initializeEmployeeData();
-    console.log('Employee data initialized successfully');
-  } catch (err) {
-    console.error('Failed to initialize employee data:', err);
-  }
+// FIXED: Initialize inside onMounted callback, not as async onMounted
+onMounted(() => {
+  initializeEmployeeData()
+    .then(() => {
+      console.log('✅ Employee data initialized successfully');
+    })
+    .catch((err) => {
+      console.error('❌ Failed to initialize employee data:', err);
+    });
 });
 </script>
 
@@ -70,6 +73,31 @@ onMounted(async () => {
 .dashboard-header p {
   color: #64748b;
   font-size: 1.1rem;
+}
+
+.loading-state {
+  text-align: center;
+  padding: 3rem;
+  color: #64748b;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e2e8f0;
+  border-top: 4px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.clock-section {
+  margin-bottom: 2rem;
 }
 
 .employee-specific-content {
@@ -110,6 +138,7 @@ onMounted(async () => {
   gap: 1rem;
   align-items: center;
 }
+
 .activity-time {
   color: #64748b;
   font-size: 0.9rem;
@@ -121,27 +150,6 @@ onMounted(async () => {
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   font-size: 0.8rem;
-}
-
-.loading-state {
-  text-align: center;
-  padding: 3rem;
-  color: #64748b;
-}
-
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #e2e8f0;
-  border-top: 4px solid #667eea;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 @media (max-width: 768px) {

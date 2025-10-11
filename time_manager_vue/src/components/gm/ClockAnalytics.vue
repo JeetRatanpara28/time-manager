@@ -3,7 +3,7 @@
     <div class="analytics-header">
       <h2>Clock Analytics</h2>
       <div class="time-range-selector">
-        <select v-model="selectedRange" class="range-select">
+        <select v-model="selectedRange" class="range-select" @change="loadAnalyticsData">
           <option value="week">This Week</option>
           <option value="month">This Month</option>
           <option value="quarter">This Quarter</option>
@@ -99,6 +99,34 @@
       </div>
     </div>
 
+    <!-- Employee Activity Logs -->
+    <div class="activity-logs-section">
+      <h3>Employee Activity Logs</h3>
+      <div class="activity-logs-table">
+        <div class="table-header">
+          <div class="col-employee">Employee</div>
+          <div class="col-date">Date</div>
+          <div class="col-times">Time Range</div>
+          <div class="col-hours">Hours</div>
+          <div class="col-status">Status</div>
+        </div>
+        
+        <div v-for="(log, index) in employeeActivityLogs" :key="index" class="table-row">
+          <div class="col-employee">{{ log.employeeName }}</div>
+          <div class="col-date">{{ formatDate(log.date) }}</div>
+          <div class="col-times">{{ log.clockIn }} - {{ log.clockOut || 'Active' }}</div>
+          <div class="col-hours">{{ log.totalHours || 0 }}h</div>
+          <div class="col-status" :class="log.status">
+            {{ log.status === 'active' ? 'Active' : 'Completed' }}
+          </div>
+        </div>
+        
+        <div v-if="!employeeActivityLogs.length" class="no-data">
+          <p>No activity logs for the selected period</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Top Performers -->
     <div class="top-performers">
       <h3>Top Performers</h3>
@@ -134,90 +162,228 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { users, timeLogs, currentUser } from '@/composables/useGmStore.js';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useAnalyticsStore } from '@/composables/useAnalyticsStore.js';
+import { useAuthStore } from '@/composables/useAuthStore.js';
 
+// Initialize stores
+const analyticsStore = useAnalyticsStore();
+const authStore = useAuthStore();
+
+// Reactive state
 const selectedRange = ref('week');
+const chartData = ref([]);
+const departmentStats = ref([]);
+const topPerformers = ref([]);
+const alerts = ref([]);
+const employeeActivityLogs = ref([]);
 
-// Mock data for charts and analytics
-const chartData = [
-  { label: 'Mon', hours: 8.5 },
-  { label: 'Tue', hours: 7.2 },
-  { label: 'Wed', hours: 9.1 },
-  { label: 'Thu', hours: 8.0 },
-  { label: 'Fri', hours: 8.8 },
-  { label: 'Sat', hours: 4.2 },
-  { label: 'Sun', hours: 0 }
-];
-
-const departmentStats = [
-  { name: 'Management', avgHours: 8.2 },
-  { name: 'Sales', avgHours: 7.8 },
-  { name: 'Development', avgHours: 8.5 },
-  { name: 'Design', avgHours: 7.2 }
-];
-
-const topPerformers = [
-  { name: 'John Smith', role: 'general_manager', hours: 45.2, days: 6 },
-  { name: 'Sarah Johnson', role: 'manager', hours: 42.1, days: 5 },
-  { name: 'Mike Davis', role: 'employee', hours: 40.5, days: 5 },
-  { name: 'Emily Chen', role: 'employee', hours: 38.8, days: 4 }
-];
-
-const alerts = [
-  { id: 1, type: 'warning', icon: '⚠️', message: 'Emily Chen has worked 4 days this week', time: '2 hours ago' },
-  { id: 2, type: 'info', icon: 'ℹ️', message: 'Average daily hours below target', time: '1 day ago' },
-  { id: 3, type: 'success', icon: '✅', message: 'Team productivity increased by 12%', time: '3 days ago' }
-];
+// Analytics data
+const totalHours = ref(0);
+const overtimeHours = ref(0);
+const totalBreaks = ref(0);
+const avgDailyHours = ref(0);
+const hoursTrend = ref(0);
+const overtimeTrend = ref(0);
+const breakTrend = ref(0);
 
 // Computed properties
-const maxHours = computed(() => Math.max(...chartData.map(d => d.hours)));
-const maxDeptHours = computed(() => Math.max(...departmentStats.map(d => d.avgHours)));
-
-const totalHours = computed(() => {
-  if (!currentUser.value || !timeLogs.value) return '0.0';
-  return timeLogs.value
-    .filter(log => log.userId === currentUser.value.id && log.totalHours)
-    .reduce((sum, log) => sum + log.totalHours, 0)
-    .toFixed(1);
+const maxHours = computed(() => {
+  if (!chartData.value.length) return 10; // Default for empty data
+  return Math.max(...chartData.value.map(d => d.hours), 8); // At least 8 for scale
 });
 
-const overtimeHours = computed(() => {
-  if (!currentUser.value || !timeLogs.value) return '0.0';
-  return timeLogs.value
-    .filter(log => log.userId === currentUser.value.id && log.totalHours && log.totalHours > 8)
-    .reduce((sum, log) => sum + (log.totalHours - 8), 0)
-    .toFixed(1);
+const maxDeptHours = computed(() => {
+  if (!departmentStats.value.length) return 8; // Default for empty data
+  return Math.max(...departmentStats.value.map(d => d.avgHours), 8); // At least 8 for scale
 });
 
-const totalBreaks = computed(() => {
-  if (!currentUser.value || !timeLogs.value) return '0';
-  return timeLogs.value
-    .filter(log => log.userId === currentUser.value.id && log.breakStart && log.breakEnd)
-    .reduce((total, log) => {
-      const breakStart = new Date(`2000-01-01T${log.breakStart}:00`);
-      const breakEnd = new Date(`2000-01-01T${log.breakEnd}:00`);
-      const breakMinutes = (breakEnd - breakStart) / (1000 * 60);
-      return total + breakMinutes;
-    }, 0)
-    .toFixed(0);
+// Format date for display
+const formatDate = (dateString) => {
+  if (!dateString) return '';
+  
+  const date = new Date(dateString);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  
+  if (date.toDateString() === today.toDateString()) {
+    return 'Today';
+  } else if (date.toDateString() === yesterday.toDateString()) {
+    return 'Yesterday';
+  } else {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short', 
+      day: 'numeric'
+    });
+  }
+};
+
+// Load analytics data based on selected range
+const loadAnalyticsData = async () => {
+  try {
+    const userId = authStore.user?.id;
+    if (!userId) return;
+    
+    // Show loading state
+    // You can add loading indicators here if needed
+    
+    // Fetch all required data
+    const analyticsData = await analyticsStore.fetchAnalytics(userId, selectedRange.value);
+    
+    if (analyticsData) {
+      // Update KPI data
+      totalHours.value = analyticsData.totalHours || 0;
+      overtimeHours.value = analyticsData.overtimeHours || 0;
+      totalBreaks.value = analyticsData.totalBreakMinutes || 0;
+      avgDailyHours.value = analyticsData.avgDailyHours || 0;
+      hoursTrend.value = analyticsData.hoursTrend || 0;
+      overtimeTrend.value = analyticsData.overtimeTrend || 0;
+      breakTrend.value = analyticsData.breakTrend || 0;
+      
+      // Update chart data
+      if (analyticsData.hoursTrend) {
+        chartData.value = analyticsData.hoursTrend;
+      }
+      
+      // Update department stats
+      if (analyticsData.departmentStats) {
+        departmentStats.value = analyticsData.departmentStats;
+      }
+      
+      // Update top performers
+      if (analyticsData.topPerformers) {
+        topPerformers.value = analyticsData.topPerformers;
+      }
+      
+      // Update alerts
+      if (analyticsData.alerts) {
+        alerts.value = analyticsData.alerts;
+      }
+      
+      // Update activity logs
+      if (analyticsData.activityLogs) {
+        employeeActivityLogs.value = analyticsData.activityLogs;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load analytics data:', error);
+    // Handle error - show notification to user
+  }
+};
+
+// Watch for changes to selected range
+watch(selectedRange, () => {
+  loadAnalyticsData();
 });
 
-const avgDailyHours = computed(() => {
-  if (!currentUser.value || !timeLogs.value) return '0.0';
-  const logs = timeLogs.value.filter(log => log.userId === currentUser.value.id && log.totalHours);
-  if (logs.length === 0) return '0.0';
-  const total = logs.reduce((sum, log) => sum + log.totalHours, 0);
-  return (total / logs.length).toFixed(1);
+// Initialize data when component mounts
+onMounted(async () => {
+  try {
+    // Ensure user data is loaded
+    if (!authStore.user) {
+      await authStore.fetchCurrentUser();
+    }
+    
+    // Load initial analytics data
+    await loadAnalyticsData();
+    
+    // Set up real-time updates if supported
+    if (analyticsStore.subscribeToAnalyticsUpdates) {
+      analyticsStore.subscribeToAnalyticsUpdates((updates) => {
+        // Handle real-time updates to analytics data
+        if (updates.totalHours) totalHours.value = updates.totalHours;
+        if (updates.overtimeHours) overtimeHours.value = updates.overtimeHours;
+        if (updates.activityLogs) {
+          // Add new logs to the existing list
+          employeeActivityLogs.value = [
+            ...updates.activityLogs,
+            ...employeeActivityLogs.value
+          ].slice(0, 20); // Keep only the 20 most recent
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Failed to initialize analytics component:', error);
+  }
 });
-
-// Mock trend calculations (in real app, compare with previous period)
-const hoursTrend = computed(() => 5.2);
-const overtimeTrend = computed(() => -2.1);
-const breakTrend = computed(() => 8.7);
 </script>
 
 <style scoped>
+
+.activity-logs-section {
+  background: white;
+  padding: 2rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  margin-bottom: 2rem;
+}
+
+.activity-logs-section h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 1.5rem;
+}
+
+.activity-logs-table {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 2fr 1fr 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px 8px 0 0;
+  font-weight: 600;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 2fr 1fr 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.table-row:last-child {
+  border-bottom: none;
+}
+
+.col-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+}
+
+.col-status.active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.col-status.completed {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.no-data {
+  padding: 2rem;
+  text-align: center;
+  color: #64748b;
+  font-style: italic;
+}
+
 .clock-analytics {
   max-width: 1400px;
   margin: 0 auto;

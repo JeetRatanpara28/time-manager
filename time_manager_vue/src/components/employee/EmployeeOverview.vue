@@ -17,15 +17,15 @@
       <div class="status-details">
         <div class="detail-item">
           <span class="label">Clock In:</span>
-          <span class="value">{{ todaysLog?.clockIn || '--:--' }}</span>
+          <span class="value">{{ todaysLog?.clock_in || todaysLog?.clockIn || '--:--' }}</span>
         </div>
         <div class="detail-item">
           <span class="label">Clock Out:</span>
-          <span class="value">{{ todaysLog?.clockOut || '--:--' }}</span>
+          <span class="value">{{ todaysLog?.clock_out || todaysLog?.clockOut || '--:--' }}</span>
         </div>
         <div class="detail-item">
           <span class="label">Total Hours:</span>
-          <span class="value">{{ todaysLog?.totalHours || 0 }}h</span>
+          <span class="value">{{ formatHours(todaysLog?.total_hours || todaysLog?.totalHours) }}h</span>
         </div>
         <div class="detail-item">
           <span class="label">Break Time:</span>
@@ -39,7 +39,7 @@
       <div class="stat-card">
         <div class="stat-icon">📅</div>
         <div class="stat-content">
-          <h4>{{ weeklyHours }}</h4>
+          <h4>{{ weeklyHours || '0.0' }}</h4>
           <p>This Week</p>
         </div>
       </div>
@@ -47,7 +47,7 @@
       <div class="stat-card">
         <div class="stat-icon">📊</div>
         <div class="stat-content">
-          <h4>{{ monthlyHours }}</h4>
+          <h4>{{ monthlyHours || '0.0' }}</h4>
           <p>This Month</p>
         </div>
       </div>
@@ -71,8 +71,8 @@
           </div>
           <div class="activity-details">
             <div class="activity-times">
-              <span class="time">{{ log.clockIn }} - {{ log.clockOut || 'Active' }}</span>
-              <span class="hours">{{ log.totalHours }}h</span>
+              <span class="time">{{ formatTime(log.clock_in || log.clockIn) }} - {{ formatTime(log.clock_out || log.clockOut) || 'Active' }}</span>
+              <span class="hours">{{ formatHours(log.total_hours || log.totalHours) }}h</span>
             </div>
             <div class="activity-status" :class="log.status">
               {{ log.status === 'active' ? 'In Progress' : 'Completed' }}
@@ -80,7 +80,7 @@
           </div>
         </div>
 
-        <div v-if="recentLogs.length === 0" class="no-activity">
+        <div v-if="!recentLogs || recentLogs.length === 0" class="no-activity">
           <p>No recent activity</p>
         </div>
       </div>
@@ -109,82 +109,148 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import {
   currentUser,
   todaysLog,
   weeklyHours,
   monthlyHours,
   recentLogs,
-  isLoading
+  isLoading,
+  initializeEmployeeData
 } from '@/composables/useEmployeeStore.js';
 
 // Define emits for Vue 3
 const emit = defineEmits(['navigate']);
 
+// Initialize data on mount
+onMounted(async () => {
+  try {
+    await initializeEmployeeData();
+    console.log('✅ Employee data initialized');
+  } catch (err) {
+    console.error('❌ Failed to initialize employee data:', err);
+  }
+});
+
+// Watch for data changes and log them for debugging
+watch([currentUser, todaysLog], ([user, log]) => {
+  console.log('📊 Employee data updated:', { user, log });
+}, { deep: true });
+
+// Safe computed for current status
 const currentStatus = computed(() => {
-  if (!todaysLog.value) return { text: 'Not Started', class: 'not-started' };
-  if (todaysLog.value?.status === 'active') return { text: 'Working', class: 'working' };
+  if (!todaysLog || !todaysLog.value) {
+    return { text: 'Not Started', class: 'not-started' };
+  }
+  
+  if (todaysLog.value?.status === 'active') {
+    return { text: 'Working', class: 'working' };
+  }
+  
   return { text: 'Completed', class: 'completed' };
 });
 
+// Safe break duration calculation
 const breakDuration = computed(() => {
-  if (!todaysLog.value?.breakStart) return 0;
+  if (!todaysLog || !todaysLog.value) return 0;
+  
+  const breakStart = todaysLog.value.break_start || todaysLog.value.breakStart;
+  if (!breakStart) return 0;
 
-  const breakStart = new Date(`2000-01-01T${todaysLog.value.breakStart}:00`);
-  const now = new Date();
-  const diffMs = now - breakStart;
-  return Math.floor(diffMs / (1000 * 60));
+  try {
+    const breakStartDate = new Date(`2000-01-01T${breakStart}`);
+    const now = new Date();
+    const diffMs = now - breakStartDate;
+    return Math.floor(diffMs / (1000 * 60));
+  } catch (error) {
+    console.error('Error calculating break duration:', error);
+    return 0;
+  }
 });
 
+// Safe average daily hours calculation
 const averageDailyHours = computed(() => {
-  if (!monthlyHours.value) return '0.0';
-  const total = parseFloat(monthlyHours.value);
-
-  // Calculate days in current month
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  const average = total / Math.max(daysInMonth, 1);
-  return average.toFixed(1);
+  if (!monthlyHours || !monthlyHours.value) return '0.0';
+  
+  try {
+    const total = parseFloat(monthlyHours.value);
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const average = total / Math.max(daysInMonth, 1);
+    return average.toFixed(1);
+  } catch (error) {
+    console.error('Error calculating average:', error);
+    return '0.0';
+  }
 });
 
+// Format date helper
 const formatDate = (dateString) => {
   if (!dateString) return 'No date';
-  const date = new Date(dateString);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
+  
+  try {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
 
-  if (date.toDateString() === today.toDateString()) {
-    return 'Today';
-  } else if (date.toDateString() === yesterday.toDateString()) {
-    return 'Yesterday';
-  } else {
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      year: 'numeric'
-    });
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    }
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return dateString;
   }
+};
+
+// Format time helper (extract time from ISO string)
+const formatTime = (timeString) => {
+  if (!timeString) return null;
+  
+  try {
+    // If it's an ISO datetime string, extract time part
+    if (timeString.includes('T')) {
+      const timePart = timeString.split('T')[1];
+      return timePart.substring(0, 5); // Get HH:MM
+    }
+    return timeString;
+  } catch (error) {
+    console.error('Error formatting time:', error);
+    return timeString;
+  }
+};
+
+// Format hours helper
+const formatHours = (hours) => {
+  if (!hours && hours !== 0) return '0.0';
+  return typeof hours === 'number' ? hours.toFixed(1) : parseFloat(hours).toFixed(1);
 };
 
 // Action handlers with safeguards
 const handleStartWorking = () => {
   console.log('handleStartWorking called - navigating to clock view');
-  // Check if already active to prevent double navigation
-  if (todaysLog.value?.status === 'active') {
+  
+  if (todaysLog && todaysLog.value?.status === 'active') {
     console.log('Already active, not navigating');
     return;
   }
-  // Emit navigation event to parent component
+  
   emit('navigate', 'clock');
 };
 
 const handleViewLogs = () => {
   console.log('handleViewLogs called - navigating to logs view');
-  // Emit navigation event to parent component
   emit('navigate', 'logs');
 };
 </script>

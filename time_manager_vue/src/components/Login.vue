@@ -33,22 +33,6 @@
           />
         </div>
 
-        <div class="form-group">
-          <label for="role">Login As</label>
-          <select
-            id="role"
-            v-model="loginForm.role"
-            required
-            :disabled="isLoading"
-            class="form-select"
-          >
-            <option value="">Select your role</option>
-            <option value="employee">Employee</option>
-            <option value="manager">Manager</option>
-            <option value="gm">General Manager</option>
-          </select>
-        </div>
-
         <div v-if="error" class="error-message">
           <span class="error-icon">⚠️</span>
           {{ error }}
@@ -60,12 +44,15 @@
         </button>
 
         <div class="demo-credentials">
-          <h4>Demo Credentials (if using backend):</h4>
+          <h4>Demo Credentials:</h4>
           <div class="credential-item">
-            <strong>Note:</strong> Use credentials from your user database
+            <strong>Employee:</strong> employee@example.com / password123
           </div>
           <div class="credential-item">
-            <strong>Create users via GM Dashboard first</strong>
+            <strong>Manager:</strong> manager@example.com / password123
+          </div>
+          <div class="credential-item">
+            <strong>GM:</strong> gm@example.com / password123
           </div>
         </div>
       </form>
@@ -75,26 +62,18 @@
 
 <script setup>
 import { ref, reactive } from 'vue';
-import { login, initializeAuth } from '@/composables/useAuthStore.js';
-import { useRouter } from 'vue-router';
-
-// Initialize auth state on component mount
-initializeAuth();
-
-// Router for navigation
-const router = useRouter();
+import { login } from '@/composables/useAuthStore.js';
 
 const loginForm = reactive({
   email: '',
-  password: 'password', // Default for demo
-  role: ''
+  password: ''
 });
 
 const isLoading = ref(false);
 const error = ref('');
 
 const handleLogin = async () => {
-  if (!loginForm.email || !loginForm.password || !loginForm.role) {
+  if (!loginForm.email || !loginForm.password) {
     error.value = 'Please fill in all fields';
     return;
   }
@@ -106,22 +85,8 @@ const handleLogin = async () => {
     const result = await login(loginForm.email, loginForm.password);
 
     if (result.success) {
-      // Check if there's a stored redirect path
-      const redirectAfterLogin = sessionStorage.getItem('redirectAfterLogin');
-      if (redirectAfterLogin) {
-        sessionStorage.removeItem('redirectAfterLogin');
-        router.push(redirectAfterLogin);
-      } else {
-        // Redirect based on role
-        const roleRoutes = {
-          'employee': '/employee',
-          'manager': '/manager',
-          'gm': '/gm'
-        };
-
-        const redirectPath = roleRoutes[loginForm.role] || '/gm';
-        router.push(redirectPath);
-      }
+      console.log('✅ Login successful, user will be redirected by App.vue');
+      // App.vue will handle navigation based on role
     } else {
       error.value = result.error || 'Login failed';
     }
@@ -130,25 +95,6 @@ const handleLogin = async () => {
     error.value = 'An unexpected error occurred. Please try again.';
   } finally {
     isLoading.value = false;
-  }
-};
-
-// Auto-fill demo credentials based on selected role
-const autoFillCredentials = () => {
-  if (loginForm.role) {
-    // For demo purposes, we'll use common demo credentials
-    // In a real app, these would be dynamically loaded from the user store
-    const demoCredentials = {
-      'employee': { email: 'demo@employee.com', password: 'password' },
-      'manager': { email: 'demo@manager.com', password: 'password' },
-      'gm': { email: 'demo@gm.com', password: 'password' }
-    };
-
-    const creds = demoCredentials[loginForm.role];
-    if (creds) {
-      loginForm.email = creds.email;
-      loginForm.password = creds.password;
-    }
   }
 };
 </script>
@@ -211,8 +157,7 @@ const autoFillCredentials = () => {
   font-size: 0.9rem;
 }
 
-.form-input,
-.form-select {
+.form-input {
   padding: 0.875rem;
   border: 1px solid #d1d5db;
   border-radius: 8px;
@@ -221,15 +166,13 @@ const autoFillCredentials = () => {
   background: white;
 }
 
-.form-input:focus,
-.form-select:focus {
+.form-input:focus {
   outline: none;
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
-.form-input:disabled,
-.form-select:disabled {
+.form-input:disabled {
   background: #f9fafb;
   cursor: not-allowed;
   opacity: 0.7;
@@ -340,16 +283,6 @@ const autoFillCredentials = () => {
 
   .demo-credentials {
     padding: 1rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .login-container {
-    padding: 1.5rem;
-  }
-
-  .login-header h1 {
-    font-size: 1.75rem;
   }
 }
 </style>

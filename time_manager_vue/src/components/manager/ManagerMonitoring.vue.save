@@ -1,4 +1,4 @@
-<template>
+OOOOOAOOOA<template>
   <div class="manager-monitoring">
     <div class="header">
       <h2>Employee Monitoring</h2>
@@ -133,7 +133,7 @@
 
 <script setup>
 import { computed, ref, onMounted } from 'vue';
-import { useManagerStore } from '@/composables/useManagerStore.js';
+import { useManagerStore } from '@/stores/manager';
 import { useAuthStore } from '@/composables/useAuthStore.js';
 
 // Initialize stores

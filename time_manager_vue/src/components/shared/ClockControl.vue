@@ -22,6 +22,7 @@
             <p v-if="todaysLog.clockIn">
               Clocked in at {{ todaysLog.clockIn }}
             </p>
+            <p v-if="userRole" class="role-badge">{{ roleDisplay }}</p>
           </div>
         </div>
 
@@ -30,6 +31,7 @@
           <div class="status-info">
             <h3>Welcome Back!</h3>
             <p>Click "Clock In" to start your work session</p>
+            <p v-if="userRole" class="role-badge">{{ roleDisplay }}</p>
           </div>
         </div>
       </div>
@@ -156,21 +158,29 @@ import {
   isLoading
 } from '@/composables/useTimeStore.js';
 
-// Props to specify user role
+// Props to specify user role - WORKS FOR ALL ROLES
 const props = defineProps({
   userRole: {
     type: String,
-    default: 'employee', // Default to employee for backward compatibility
+    default: 'employee',
     validator: (value) => ['employee', 'manager', 'gm'].includes(value)
   }
 });
 
 const currentTime = ref('');
 const currentDate = ref('');
+const isDataLoading = ref(true);
 let timeInterval = null;
 
-// Add data loading state to prevent button issues after reload
-const isDataLoading = ref(true);
+// Role display
+const roleDisplay = computed(() => {
+  const roleMap = {
+    'employee': 'Employee',
+    'manager': 'Manager',
+    'gm': 'General Manager'
+  };
+  return roleMap[props.userRole] || 'User';
+});
 
 // Update current time every second
 const updateTime = () => {
@@ -189,8 +199,6 @@ const updateTime = () => {
 };
 
 // Computed properties
-const today = computed(() => new Date().toISOString().split('T')[0]);
-
 const hasActiveSession = computed(() => {
   return todaysLog.value?.status === 'active';
 });
@@ -198,8 +206,6 @@ const hasActiveSession = computed(() => {
 const isOnBreak = computed(() => {
   const log = todaysLog.value;
   if (!log) return false;
-
-  // Check if there's an active break (break started but not ended)
   return log.breakStart && !log.breakEnd;
 });
 
@@ -207,62 +213,55 @@ const breakDuration = computed(() => {
   const log = todaysLog.value;
   if (!log?.breakStart) return 0;
 
-  const breakStart = new Date(`2000-01-01T${log.breakStart}:00`);
-  const now = new Date();
-
-  if (log.breakEnd) {
-    const breakEnd = new Date(`2000-01-01T${log.breakEnd}:00`);
-    const diffMs = breakEnd - breakStart;
-    return Math.floor(diffMs / (1000 * 60));
-  } else {
-    const diffMs = now - breakStart;
-    return Math.floor(diffMs / (1000 * 60));
+  try {
+    const breakStart = new Date(`2000-01-01T${log.breakStart}:00`);
+    
+    if (log.breakEnd) {
+      const breakEnd = new Date(`2000-01-01T${log.breakEnd}:00`);
+      const diffMs = breakEnd - breakStart;
+      return Math.floor(diffMs / (1000 * 60));
+    } else {
+      const now = new Date();
+      const diffMs = now - breakStart;
+      return Math.floor(diffMs / (1000 * 60));
+    }
+  } catch (e) {
+    return 0;
   }
 });
 
 const workDays = computed(() => {
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-
-  // Count days with logged hours
   let count = 0;
   for (let i = 0; i < 7; i++) {
     const checkDate = new Date(weekStart);
     checkDate.setDate(checkDate.getDate() + i);
-
-    // Simple check - if we have any logs for this date, count it as a work day
-    // In a real app, you'd filter by the employee's logs
     if (checkDate <= new Date()) {
       count++;
     }
   }
-
-  return Math.min(count, 5); // Max 5 work days
+  return Math.min(count, 5);
 });
 
 const averageHours = computed(() => {
-  const total = parseFloat(weeklyHours.value);
+  const total = parseFloat(weeklyHours.value || 0);
   const days = parseInt(workDays.value);
   if (days === 0) return '0.0';
   return (total / days).toFixed(1);
 });
 
-// Action handlers with improved error handling and state management
+// Action handlers - SAME FOR ALL ROLES
 const handleClockIn = async () => {
-  // Prevent any actions during data loading or if already loading
-  if (isDataLoading.value || isLoading.value) {
-    return;
-  }
+  if (isDataLoading.value || isLoading.value) return;
 
-  // Double-check if already clocked in to prevent race conditions
-  const today = new Date().toISOString().split('T')[0];
   const existingLog = todaysLog.value;
   if (existingLog && existingLog.status === 'active') {
     return;
   }
 
   try {
-    await clockIn(true); // Pass userInitiated = true
+    await clockIn(true);
   } catch (err) {
     console.error('Failed to clock in:', err);
     alert('Failed to clock in. Please try again.');
@@ -270,10 +269,7 @@ const handleClockIn = async () => {
 };
 
 const handleClockOut = async () => {
-  // Prevent any actions during data loading or if already loading
-  if (isDataLoading.value || isLoading.value) {
-    return;
-  }
+  if (isDataLoading.value || isLoading.value) return;
 
   try {
     await clockOut();
@@ -284,10 +280,7 @@ const handleClockOut = async () => {
 };
 
 const handleBreakStart = async () => {
-  // Prevent any actions during data loading
-  if (isDataLoading.value || isLoading.value) {
-    return;
-  }
+  if (isDataLoading.value || isLoading.value) return;
 
   try {
     await startBreak();
@@ -298,10 +291,7 @@ const handleBreakStart = async () => {
 };
 
 const handleBreakEnd = async () => {
-  // Prevent any actions during data loading
-  if (isDataLoading.value || isLoading.value) {
-    return;
-  }
+  if (isDataLoading.value || isLoading.value) return;
 
   try {
     await endBreak();
@@ -314,11 +304,10 @@ const handleBreakEnd = async () => {
 onMounted(() => {
   updateTime();
   timeInterval = setInterval(updateTime, 1000);
-
-  // Allow more time for data to load before enabling buttons
+  
   setTimeout(() => {
     isDataLoading.value = false;
-  }, 3000);
+  }, 2000);
 });
 
 onUnmounted(() => {
@@ -392,6 +381,19 @@ onUnmounted(() => {
   margin: 0;
 }
 
+.role-badge {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .clock-controls {
   margin-bottom: 3rem;
 }
@@ -454,13 +456,8 @@ onUnmounted(() => {
 .clock-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  transform: none !important; /* Override hover transform */
-  box-shadow: none !important; /* Override hover shadow */
-}
-
-.clock-btn:disabled:hover {
-  transform: none;
-  box-shadow: none;
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 .clock-in {

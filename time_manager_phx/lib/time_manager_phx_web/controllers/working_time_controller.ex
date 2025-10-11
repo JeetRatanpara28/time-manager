@@ -57,23 +57,44 @@ defmodule TimeManagerPhxWeb.WorkingTimeController do
 
   # GET /api/workingtimes/:id
   def show(conn, %{"id" => id}) do
-    working_time = TimeTracking.get_working_time!(id)
-    render(conn, :show, working_time: working_time)
-  end
-
-  def update(conn, %{"id" => id, "working_time" => working_time_params}) do
-    working_time = TimeTracking.get_working_time!(id)
-
-    with {:ok, %WorkingTime{} = working_time} <- TimeTracking.update_working_time(working_time, working_time_params) do
-      render(conn, :show, working_time: working_time)
+    case TimeTracking.get_working_time(id) do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Working time not found"})
+      
+      working_time ->
+        render(conn, :show, working_time: working_time)
     end
   end
 
-  def delete(conn, %{"id" => id}) do
-    working_time = TimeTracking.get_working_time!(id)
+  # PUT /api/workingtimes/:id
+  def update(conn, %{"id" => id, "working_time" => working_time_params}) do
+    case TimeTracking.get_working_time(id) do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Working time not found"})
+      
+      working_time ->
+        with {:ok, %WorkingTime{} = updated_working_time} <- TimeTracking.update_working_time(working_time, working_time_params) do
+          render(conn, :show, working_time: updated_working_time)
+        end
+    end
+  end
 
-    with {:ok, %WorkingTime{}} <- TimeTracking.delete_working_time(working_time) do
-      send_resp(conn, :no_content, "")
+  # DELETE /api/workingtimes/:id
+  def delete(conn, %{"id" => id}) do
+    case TimeTracking.get_working_time(id) do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Working time not found"})
+      
+      working_time ->
+        with {:ok, %WorkingTime{}} <- TimeTracking.delete_working_time(working_time) do
+          send_resp(conn, :no_content, "")
+        end
     end
   end
 
