@@ -1,15 +1,14 @@
-// JWT Authentication Store - Handles JWT tokens, login, logout, and user session management
+// JWT Authentication Store - Session persistence (survives page refresh)
 import { ref, computed } from 'vue';
-import router from '@/router';
 
 // Authentication state
 export const isAuthenticated = ref(false);
 export const currentUser = ref(null);
-export const authToken = ref(localStorage.getItem('authToken') || null);
-export const refreshToken = ref(localStorage.getItem('refreshToken') || null);
+export const authToken = ref(null);
+export const refreshToken = ref(null);
 export const isLoading = ref(false);
 export const error = ref(null);
-export const isAuthInitialized = ref(false); // Track if auth initialization is complete
+export const isAuthInitialized = ref(false);
 
 // Token expiration check
 const isTokenExpired = (token) => {
@@ -29,7 +28,7 @@ const shouldRefreshToken = (token) => {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
     const currentTime = Date.now() / 1000;
-    const fiveMinutes = 5 * 60; // 5 minutes in seconds
+    const fiveMinutes = 5 * 60;
     return (payload.exp - currentTime) < fiveMinutes;
   } catch (err) {
     return false;
@@ -44,6 +43,46 @@ const mapBackendRoleToFrontend = (backendRole) => {
     'employee': 'employee'
   };
   return roleMap[backendRole] || backendRole;
+};
+
+// Save auth state to sessionStorage (survives page refresh, NOT browser close)
+const saveAuthState = () => {
+  if (authToken.value && currentUser.value) {
+    sessionStorage.setItem('authToken', authToken.value);
+    sessionStorage.setItem('refreshToken', refreshToken.value);
+    sessionStorage.setItem('currentUser', JSON.stringify(currentUser.value));
+    console.log('💾 Auth state saved to session');
+  }
+};
+
+// Clear auth state from sessionStorage
+const clearAuthState = () => {
+  sessionStorage.removeItem('authToken');
+  sessionStorage.removeItem('refreshToken');
+  sessionStorage.removeItem('currentUser');
+  console.log('🧹 Auth state cleared from session');
+};
+
+// Restore auth state from sessionStorage
+const restoreAuthState = () => {
+  try {
+    const savedToken = sessionStorage.getItem('authToken');
+    const savedRefreshToken = sessionStorage.getItem('refreshToken');
+    const savedUser = sessionStorage.getItem('currentUser');
+
+    if (savedToken && savedRefreshToken && savedUser && !isTokenExpired(savedToken)) {
+      authToken.value = savedToken;
+      refreshToken.value = savedRefreshToken;
+      currentUser.value = JSON.parse(savedUser);
+      isAuthenticated.value = true;
+      
+      console.log('✅ Auth state restored from session');
+      return true;
+    }
+  } catch (err) {
+    console.error('❌ Failed to restore auth state:', err);
+  }
+  return false;
 };
 
 // Authentication functions
@@ -69,34 +108,28 @@ export const login = async (email, password) => {
       authToken.value = response.token;
       refreshToken.value = response.refreshToken;
 
-      // Store current user info - map backend role to frontend role
+      // Store current user info
       currentUser.value = {
         id: response.user.id,
         name: response.user.name,
         email: response.user.email,
         role: mapBackendRoleToFrontend(response.user.role),
-        department: response.user.department
+        department: response.user.department,
+        phone: response.user.phone,
+        status: response.user.status
       };
 
       isAuthenticated.value = true;
 
-      // Store in localStorage for persistence
-      localStorage.setItem('authToken', authToken.value);
-      localStorage.setItem('refreshToken', refreshToken.value);
-      localStorage.setItem('currentUser', JSON.stringify(currentUser.value));
+      // Save to sessionStorage
+      saveAuthState();
 
-      console.log('💾 Auth state saved to localStorage:', {
-        hasToken: !!localStorage.getItem('authToken'),
-        hasUser: !!localStorage.getItem('currentUser')
-      });
+      // Set token in API service
+      apiService.setAuthToken(authToken.value);
+      console.log('🔑 Auth token set in API service');
 
       // Set up token refresh timer
       setupTokenRefresh();
-
-      // Update API service with the new token
-      const { getApiService } = await import('@/services/apiService.js');
-      const apiServiceInstance = getApiService();
-      apiServiceInstance.setAuthToken(authToken.value);
 
       return { success: true, user: currentUser.value };
     } else {
@@ -116,26 +149,16 @@ export const logout = async () => {
   isLoading.value = true;
 
   try {
-    // Get API service and clear token
     const { getApiService } = await import('@/services/apiService.js');
     const apiService = getApiService();
     apiService.clearAuthToken();
 
-    // Clear tokens and user data
     authToken.value = null;
     refreshToken.value = null;
     currentUser.value = null;
     isAuthenticated.value = false;
 
-    // Clear localStorage
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('currentUser');
-
-    // Clear any stored redirect path
-    sessionStorage.removeItem('redirectAfterLogin');
-
-    // Clear token refresh timer
+    clearAuthState();
     clearTokenRefresh();
 
     console.log('✅ Logout completed successfully');
@@ -155,16 +178,14 @@ const setupTokenRefresh = () => {
   clearTokenRefresh();
 
   if (authToken.value && shouldRefreshToken(authToken.value)) {
-    // Refresh token if it's close to expiry
     refreshTokenNow();
   }
 
-  // Set up periodic check for token refresh
   refreshTimer = setInterval(async () => {
     if (authToken.value && shouldRefreshToken(authToken.value)) {
       await refreshTokenNow();
     }
-  }, 60000); // Check every minute
+  }, 60000);
 };
 
 const clearTokenRefresh = () => {
@@ -177,8 +198,7 @@ const clearTokenRefresh = () => {
 const refreshTokenNow = async () => {
   try {
     console.log('🔄 Attempting token refresh...');
-    console.log('🔑 Current refresh token:', refreshToken.value ? 'present' : 'missing');
-
+    
     const { getApiService } = await import('@/services/apiService.js');
     const apiService = getApiService();
 
@@ -188,112 +208,53 @@ const refreshTokenNow = async () => {
       console.log('✅ Token refresh successful');
       authToken.value = response.token;
       refreshToken.value = response.refreshToken;
-
-      localStorage.setItem('authToken', authToken.value);
-      localStorage.setItem('refreshToken', refreshToken.value);
-
-      // Update API service with the new token
+      
+      saveAuthState();
       apiService.setAuthToken(authToken.value);
-
-      console.log('💾 New tokens saved to localStorage');
     } else {
-      console.warn('⚠️ Refresh response missing tokens:', response);
       throw new Error('Invalid refresh response');
     }
   } catch (err) {
     console.error('❌ Token refresh failed:', err.message);
 
-    // Clear invalid tokens and logout
-    console.log('🧹 Clearing invalid tokens...');
+    // Clear auth state on refresh failure
     authToken.value = null;
     refreshToken.value = null;
     currentUser.value = null;
     isAuthenticated.value = false;
 
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('currentUser');
+    clearAuthState();
 
-    // Clear token from API service
     const { getApiService } = await import('@/services/apiService.js');
     const apiService = getApiService();
     apiService.clearAuthToken();
-
-    // Don't redirect here, let the router guard handle it
-    console.log('🚪 User will be redirected to login');
   }
 };
 
-// Initialize auth state from localStorage on app start
+// Initialize auth state (restore from session if exists)
 export const initializeAuth = async () => {
   console.log('🔄 Initializing auth state...');
-  try {
-    const savedToken = localStorage.getItem('authToken');
-    const savedRefreshToken = localStorage.getItem('refreshToken');
-    const savedUser = localStorage.getItem('currentUser');
-
-    console.log('🔍 Found in localStorage:', {
-      hasToken: !!savedToken,
-      hasRefreshToken: !!savedRefreshToken,
-      hasUser: !!savedUser
-    });
-
-    if (savedToken && savedRefreshToken && savedUser) {
-      // Check if token is still valid
-      if (!isTokenExpired(savedToken)) {
-        console.log('✅ Token is valid, restoring auth state');
-        authToken.value = savedToken;
-        refreshToken.value = savedRefreshToken;
-        currentUser.value = JSON.parse(savedUser);
-        isAuthenticated.value = true;
-
-        // Set token in API service
-        const { getApiService } = await import('@/services/apiService.js');
-        const apiService = getApiService();
-        apiService.setAuthToken(authToken.value);
-
-        // Set up token refresh
-        setupTokenRefresh();
-      } else {
-        console.log('❌ Token expired, trying to refresh...');
-        try {
-          await refreshTokenNow();
-          // Check if refresh was successful
-          if (isAuthenticated.value) {
-            console.log('✅ Refresh successful, user authenticated');
-          } else {
-            console.log('❌ Refresh failed, user will be redirected to login');
-            // Redirect to login if refresh fails
-            router.push({ name: 'login' });
-          }
-        } catch (refreshErr) {
-          console.warn('❌ Token refresh failed during initialization:', refreshErr.message);
-          // Clear expired tokens
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('currentUser');
-          console.log('🧹 Cleared expired tokens from localStorage');
-          // Redirect to login if refresh fails
-          router.push({ name: 'login' });
-        }
-      }
-    } else {
-      console.log('⚠️ No complete auth data found in localStorage');
-    }
-  } catch (err) {
-    console.error('❌ Failed to restore authentication state:', err);
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('currentUser');
-  } finally {
-    // Mark auth initialization as complete
-    isAuthInitialized.value = true;
-    console.log('✅ Auth initialization complete:', {
-      isAuthenticated: isAuthenticated.value,
-      hasUser: !!currentUser.value,
-      isAuthInitialized: isAuthInitialized.value
-    });
+  
+  // Try to restore from sessionStorage first
+  const restored = restoreAuthState();
+  
+  if (restored) {
+    // Set token in API service
+    const { getApiService } = await import('@/services/apiService.js');
+    const apiService = getApiService();
+    apiService.setAuthToken(authToken.value);
+    
+    // Setup token refresh
+    setupTokenRefresh();
   }
+  
+  isAuthInitialized.value = true;
+  
+  console.log('✅ Auth initialization complete:', {
+    isAuthenticated: isAuthenticated.value,
+    hasUser: !!currentUser.value,
+    isAuthInitialized: isAuthInitialized.value
+  });
 };
 
 // Check if user has specific role
@@ -312,8 +273,14 @@ export const getUserDisplayName = computed(() => {
 export const getUserRoleDisplay = computed(() => {
   const role = currentUser.value?.role;
   if (!role) return 'Unknown';
-
-  return role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  
+  const roleDisplayMap = {
+    'gm': 'General Manager',
+    'manager': 'Manager',
+    'employee': 'Employee'
+  };
+  
+  return roleDisplayMap[role] || role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
 });
 
 // Cleanup on app unmount

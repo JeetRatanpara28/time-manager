@@ -1,8 +1,8 @@
 <template>
   <div class="manager-analytics">
-    <div class="header">
-      <h2>My Analytics</h2>
-      <p>Review your working-time log, clock-in/out history, charts, and KPIs</p>
+O    <div class="header">
+ OBOO     <h2>My Analytics</h2>
+     BB <p>Review your working-time log, clock-in/out history, charts, and KPIs</p>
     </div>
 
     <!-- KPI Cards -->
@@ -130,8 +130,8 @@
 
 <script setup>
 import { computed, ref, onMounted } from 'vue';
-import { useManagerStore } from '@/composables/useManagerStore.js' // Import manager store
-import { useAuthStore } from '@/composables/useAuthStore.js'; // Import auth store for current user
+import { useManagerStore } from '@/stores/manager'; // Import manager store
+import { useAuthStore } from '@/stores/auth'; // Import auth store for current user
 
 // Initialize stores
 const managerStore = useManagerStore();

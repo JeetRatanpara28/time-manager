@@ -1,4 +1,4 @@
-<template>
+c<template>
   <div class="manager-profile">
     <div class="header">
       <h2>My Profile</h2>
@@ -145,7 +145,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { useAuthStore } from '@/composables/useAuthStore.js'; // Import auth store
+import { useAuthStore } from '@/stores/auth'; // Import auth store
 
 // Get the current user from auth store
 const authStore = useAuthStore();
