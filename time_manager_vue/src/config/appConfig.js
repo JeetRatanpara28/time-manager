@@ -4,7 +4,7 @@ export const config = {
   useRealAPI: true,  // Changed from false to true
 
   // API base URL for Phoenix backend
-  apiBaseUrl: 'http://localhost:4000/api',
+  apiBaseUrl: 'https://time-manager-phx.fly.dev/api',
 
   // Development settings
   dev: {
