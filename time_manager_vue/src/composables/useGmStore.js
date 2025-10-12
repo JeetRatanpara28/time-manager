@@ -57,8 +57,9 @@ export const initializeData = async () => {
 
 // Re-export universal functions with same names for compatibility
 export const addUser = async (userData) => {
-  const { authenticatedRequest } = await import('@/composables/useAuthStore.js');
-  const response = await authenticatedRequest('/users', {
+  const { useAuthStore } = await import('@/composables/useAuthStore.js');
+  const authStore = useAuthStore();
+  const response = await authStore.authenticatedRequest('/users', {
     method: 'POST',
     body: JSON.stringify({ user: userData }),
   });
@@ -75,8 +76,9 @@ export const addUser = async (userData) => {
 };
 
 export const updateUser = async (userId, updates) => {
-  const { authenticatedRequest } = await import('@/composables/useAuthStore.js');
-  const response = await authenticatedRequest(`/users/${userId}`, {
+  const { useAuthStore } = await import('@/composables/useAuthStore.js');
+  const authStore = useAuthStore();
+  const response = await authStore.authenticatedRequest(`/users/${userId}`, {
     method: 'PUT',
     body: JSON.stringify({ user: updates }),
   });
@@ -96,8 +98,9 @@ export const updateUser = async (userId, updates) => {
 };
 
 export const deleteUser = async (userId) => {
-  const { authenticatedRequest } = await import('@/composables/useAuthStore.js');
-  await authenticatedRequest(`/users/${userId}`, {
+  const { useAuthStore } = await import('@/composables/useAuthStore.js');
+  const authStore = useAuthStore();
+  await authStore.authenticatedRequest(`/users/${userId}`, {
     method: 'DELETE',
   });
   if (users && users.value) {
@@ -109,8 +112,9 @@ export const deleteUser = async (userId) => {
 };
 
 export const getDashboardStats = async () => {
-  const { authenticatedRequest } = await import('@/composables/useAuthStore.js');
-  return await authenticatedRequest('/dashboard/stats');
+  const { useAuthStore } = await import('@/composables/useAuthStore.js');
+  const authStore = useAuthStore();
+  return await authStore.authenticatedRequest('/dashboard/stats');
 };
 
 // Re-export universal clock functions

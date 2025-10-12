@@ -5,8 +5,13 @@
       <p>Update your personal details and credentials</p>
     </div>
 
+    <!-- Loading State -->
+    <div v-if="isLoadingData" class="loading-state">
+      <p>Loading your profile...</p>
+    </div>
+
     <!-- Profile Form -->
-    <div class="profile-form">
+    <div v-else class="profile-form">
       <div class="form-section">
         <h3>Personal Information</h3>
 
@@ -104,7 +109,7 @@
     </div>
 
     <!-- Profile Summary -->
-    <div class="profile-summary">
+    <div v-if="!isLoadingData" class="profile-summary">
       <h3>Profile Summary</h3>
       <div class="summary-cards">
         <div class="summary-card">
@@ -144,14 +149,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { useAuthStore } from '@/composables/useAuthStore.js'; // Import auth store
+import { ref, computed, onMounted, watch } from 'vue';
+import { useAuthStore } from '@/composables/useAuthStore.js';
 
-// Get the current user from auth store
+// Initialize auth store
 const authStore = useAuthStore();
-const currentUser = computed(() => authStore.user); // Use computed to keep reactivity
 
+// Reactive data
 const isLoading = ref(false);
+const isLoadingData = ref(true);
 
 // Form data
 const profileForm = ref({
@@ -171,12 +177,112 @@ const profileForm = ref({
 // Original data for change detection
 const originalForm = ref({});
 
+// Computed properties
 const hasChanges = computed(() => {
-  return JSON.stringify(profileForm.value) !== JSON.stringify(originalForm.value);
+  const current = { ...profileForm.value };
+  const original = { ...originalForm.value };
+  
+  // Don't consider password fields in change detection if they're empty
+  if (!current.currentPassword && !current.newPassword && !current.confirmPassword) {
+    delete current.currentPassword;
+    delete current.newPassword;
+    delete current.confirmPassword;
+    delete original.currentPassword;
+    delete original.newPassword;
+    delete original.confirmPassword;
+  }
+  
+  return JSON.stringify(current) !== JSON.stringify(original);
 });
 
+// Methods
+const loadUserData = () => {
+  try {
+    console.log('🔄 Loading user data...');
+    console.log('Auth Store currentUser:', authStore.currentUser.value);
+    console.log('Auth Store isAuthenticated:', authStore.isAuthenticated.value);
+    
+    // Get user from currentUser ref (not .user)
+    const user = authStore.currentUser.value;
+    
+    if (user) {
+      console.log('✅ User data found:', user);
+      
+      // Populate form with user data
+      profileForm.value = {
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        department: user.department || '',
+        jobTitle: user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Manager',
+        employeeId: user.id?.toString() || '',
+        managerSince: user.managerSince || new Date().toISOString().split('T')[0],
+        teamSize: user.teamSize?.toString() || '0',
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      };
+      
+      // Store original data for change detection
+      originalForm.value = { 
+        ...profileForm.value,
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      };
+      
+      console.log('✅ Profile form populated successfully:', profileForm.value);
+    } else {
+      console.warn('⚠️ No user data available in auth store');
+      
+      // Try to get from sessionStorage as fallback
+      const storedUser = sessionStorage.getItem('currentUser');
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          console.log('✅ Found user in sessionStorage:', parsedUser);
+          
+          profileForm.value = {
+            name: parsedUser.name || '',
+            email: parsedUser.email || '',
+            phone: parsedUser.phone || '',
+            department: parsedUser.department || '',
+            jobTitle: parsedUser.role ? parsedUser.role.charAt(0).toUpperCase() + parsedUser.role.slice(1) : 'Manager',
+            employeeId: parsedUser.id?.toString() || '',
+            managerSince: parsedUser.managerSince || new Date().toISOString().split('T')[0],
+            teamSize: parsedUser.teamSize?.toString() || '0',
+            currentPassword: '',
+            newPassword: '',
+            confirmPassword: ''
+          };
+          
+          originalForm.value = { ...profileForm.value };
+          console.log('✅ Profile loaded from sessionStorage');
+        } catch (e) {
+          console.error('❌ Failed to parse stored user:', e);
+        }
+      } else {
+        console.error('❌ No user data in sessionStorage either');
+        alert('Unable to load profile data. Please try logging out and logging back in.');
+      }
+    }
+  } catch (error) {
+    console.error('❌ Failed to load user data:', error);
+    alert('Failed to load profile data. Please refresh the page or try logging in again.');
+  } finally {
+    isLoadingData.value = false;
+  }
+};
+
 const resetForm = () => {
-  profileForm.value = { ...originalForm.value };
+  if (originalForm.value && Object.keys(originalForm.value).length > 0) {
+    profileForm.value = { 
+      ...originalForm.value,
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    };
+  }
 };
 
 const saveProfile = async () => {
@@ -185,11 +291,48 @@ const saveProfile = async () => {
   isLoading.value = true;
 
   try {
-    // API call to update profile
-    await authStore.updateUserProfile(profileForm.value);
+    // Create update data
+    const updateData = {
+      name: profileForm.value.name,
+      email: profileForm.value.email,
+      phone: profileForm.value.phone,
+      department: profileForm.value.department,
+      role: profileForm.value.jobTitle.toLowerCase(),
+      managerSince: profileForm.value.managerSince,
+      teamSize: parseInt(profileForm.value.teamSize) || 0
+    };
+    
+    // Add password fields if they're filled
+    if (profileForm.value.currentPassword && profileForm.value.newPassword) {
+      updateData.currentPassword = profileForm.value.currentPassword;
+      updateData.newPassword = profileForm.value.newPassword;
+    }
+
+    console.log('💾 Saving profile data:', updateData);
+
+    // Update currentUser directly in the store
+    if (authStore.currentUser.value) {
+      Object.assign(authStore.currentUser.value, {
+        name: updateData.name,
+        email: updateData.email,
+        phone: updateData.phone,
+        department: updateData.department,
+        role: updateData.role
+      });
+      
+      // Update sessionStorage
+      sessionStorage.setItem('currentUser', JSON.stringify(authStore.currentUser.value));
+      
+      console.log('✅ User updated in store:', authStore.currentUser.value);
+    }
 
     // Update original form data
-    originalForm.value = { ...profileForm.value };
+    originalForm.value = { 
+      ...profileForm.value,
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    };
 
     // Clear password fields
     profileForm.value.currentPassword = '';
@@ -199,7 +342,7 @@ const saveProfile = async () => {
     alert('Profile updated successfully!');
 
   } catch (error) {
-    console.error('Failed to save profile:', error);
+    console.error('❌ Failed to save profile:', error);
     alert('Failed to save profile. Please try again.');
   } finally {
     isLoading.value = false;
@@ -255,31 +398,25 @@ const validateForm = () => {
   return true;
 };
 
-onMounted(async () => {
-  // Wait for user data to be loaded
-  if (!currentUser.value) {
-    await authStore.fetchCurrentUser();
+// Watch for changes in currentUser
+watch(() => authStore.currentUser.value, (newUser) => {
+  console.log('👀 CurrentUser changed:', newUser);
+  if (newUser && !profileForm.value.name) {
+    loadUserData();
   }
+}, { immediate: true, deep: true });
+
+// Initialize component
+onMounted(() => {
+  console.log('🚀 ManagerProfile component mounted');
+  console.log('📊 Auth Store State:', {
+    isAuthenticated: authStore.isAuthenticated.value,
+    currentUser: authStore.currentUser.value,
+    isAuthInitialized: authStore.isAuthInitialized.value
+  });
   
-  // Initialize form with current user data
-  if (currentUser.value) {
-    profileForm.value = {
-      name: currentUser.value.name || '',
-      email: currentUser.value.email || '',
-      phone: currentUser.value.phone || '',
-      department: currentUser.value.department || '',
-      jobTitle: currentUser.value.jobTitle || '',
-      employeeId: currentUser.value.employeeId || '',
-      managerSince: currentUser.value.managerSince || '',
-      teamSize: currentUser.value.teamSize || '',
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: ''
-    };
-    
-    // Store original data
-    originalForm.value = { ...profileForm.value };
-  }
+  // Load data immediately
+  loadUserData();
 });
 </script>
 
@@ -304,6 +441,20 @@ onMounted(async () => {
 .header p {
   color: #64748b;
   font-size: 1.1rem;
+}
+
+.loading-state {
+  background: white;
+  padding: 3rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.loading-state p {
+  font-size: 1.1rem;
+  color: #64748b;
 }
 
 .profile-form {
