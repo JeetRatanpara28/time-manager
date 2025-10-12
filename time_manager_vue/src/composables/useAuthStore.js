@@ -332,6 +332,13 @@ export const useAuthStore = () => {
       return currentUser.value;
     },
 
+    // Authenticated request helper
+    authenticatedRequest: async (endpoint, options = {}) => {
+      const { getApiService } = await import('@/services/apiService.js');
+      const apiService = getApiService();
+      return apiService.request(endpoint, options);
+    },
+
     // Computed properties
     user: currentUser,
     isLoggedIn: isAuthenticated,
