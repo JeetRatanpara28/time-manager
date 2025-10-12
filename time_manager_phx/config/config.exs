@@ -39,7 +39,8 @@ config :logger, :default_formatter,
 # Guardian configuration for JWT authentication
 config :time_manager_phx, TimeManagerPhx.Accounts.Guardian,
   issuer: "time_manager_phx",
-  secret_key: "your-secret-key-here-change-this-in-production",
+  # FIXED: Use a proper secret key - in production use System.get_env()
+  secret_key: "super_secret_key_that_should_be_in_environment_variables_in_production_at_least_64_chars_long",
   token_ttl: %{
     "access" => {2, :hours},  # Extended for testing
     "refresh" => {7, :days}

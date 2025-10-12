@@ -176,6 +176,107 @@ export const exportTeamLogsToCSV = (userId) => {
   const link = document.createElement('a');
   link.href = url;
   link.download = `${user.name}_time_logs.csv`;
-  link.click();
   URL.revokeObjectURL(url);
+};
+
+// useManagerStore composable function
+export const useManagerStore = () => {
+  // Helper function to get API service
+  const getApiService = async () => {
+    const { getApiService: apiService } = await import('@/services/apiService.js');
+    return apiService();
+  };
+
+  return {
+    // Reactive state
+    users,
+    timeLogs,
+    currentUser,
+    isLoading,
+    error,
+
+    // Computed properties
+    employees,
+    teamMembers,
+    todaysLogs,
+    teamTodaysLogs,
+    teamStats,
+
+    // Functions
+    initializeManagerData,
+    addUser,
+    updateUser,
+    clockIn,
+    clockOut,
+    startBreak,
+    endBreak,
+    exportTeamLogsToCSV,
+
+    // Manager-specific API methods
+    fetchTeamMembers: async (managerId) => {
+      const apiService = await getApiService();
+      const response = await apiService.getTeamMembers(managerId);
+      if (users && users.value) {
+        users.value = response.data || [];
+      }
+      return response.data;
+    },
+
+    fetchTodayActivities: async (employeeIds) => {
+      const apiService = await getApiService();
+      const response = await apiService.getTodayActivities(employeeIds);
+      return response.data || [];
+    },
+
+    fetchTeamStats: async (managerId) => {
+      const apiService = await getApiService();
+      const response = await apiService.getTeamStats(managerId);
+      return response.data || {
+        totalMembers: 0,
+        activeNow: 0,
+        onBreak: 0,
+        completedToday: 0
+      };
+    },
+
+    fetchTeamProductivity: async (managerId) => {
+      const apiService = await getApiService();
+      const response = await apiService.getTeamProductivity(managerId);
+      return response.data || [];
+    },
+
+    setSelectedEmployee: (employee) => {
+      // Store selected employee in session storage for navigation
+      sessionStorage.setItem('selectedEmployee', JSON.stringify(employee));
+    },
+
+    exportEmployeeLogs: async (employeeId) => {
+      const apiService = await getApiService();
+      const response = await apiService.exportEmployeeLogs(employeeId);
+
+      // If API doesn't handle CSV export, use the local export function
+      if (!response || !response.data) {
+        exportTeamLogsToCSV(employeeId);
+      }
+
+      return response;
+    },
+
+    subscribeToEmployeeStatusUpdates: (callback) => {
+      // Placeholder for real-time updates - could be implemented with WebSockets
+      // For now, this is a no-op but allows the component to call it without error
+      return () => {}; // Return unsubscribe function
+    },
+
+    // Additional helper methods
+    refreshWorkingTimes: async () => {
+      return refreshWorkingTimesFn();
+    },
+
+    // Computed aliases for backward compatibility
+    todaysLog,
+    weeklyHours,
+    monthlyHours,
+    recentLogs,
+  };
 };

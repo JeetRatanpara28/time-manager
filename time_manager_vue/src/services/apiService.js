@@ -4,16 +4,43 @@ const API_BASE_URL = 'http://localhost:4000/api';
 class ApiService {
   constructor() {
     this.baseURL = API_BASE_URL;
+    this.authToken = null;
+  }
+
+  // Set authentication token for all future requests
+  setAuthToken(token) {
+    this.authToken = token;
+    console.log('🔑 Auth token set:', token ? 'present' : 'none');
+  }
+
+  // Clear authentication token
+  clearAuthToken() {
+    this.authToken = null;
+    console.log('🧹 Auth token cleared');
+  }
+
+  // Get current auth token
+  getAuthToken() {
+    return this.authToken;
   }
 
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
+    
+    // Build headers FIRST, including auth token if available
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    // Add Authorization header if token exists
+    if (this.authToken) {
+      headers['Authorization'] = `Bearer ${this.authToken}`;
+    }
+
     const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
       ...options,
+      headers
     };
 
     try {
@@ -90,30 +117,37 @@ class ApiService {
     // Auth endpoints
     if (endpoint === '/auth/login') {
       return {
+        success: true,
         token: 'demo-jwt-token-' + Date.now(),
         refreshToken: 'demo-refresh-token-' + Date.now(),
         user: {
-          id: 1,
+          id: '1',
           name: 'Demo User',
           email: 'demo@gm.com',
-          role: 'gm'
+          role: 'gm',
+          department: 'Management'
         }
       };
     }
 
     if (endpoint === '/auth/refresh') {
       return {
-        token: 'demo-jwt-token-refreshed-' + Date.now(),
-        refreshToken: 'demo-refresh-token-refreshed-' + Date.now()
+        success: true,
+        token: 'demo-jwt-token-refreshed-' + Date.now()
       };
     }
 
-    if (endpoint === '/auth/me') {
+    if (endpoint === '/auth/me' || endpoint === '/auth/profile') {
       return {
-        id: 1,
-        name: 'Demo User',
-        email: 'demo@gm.com',
-        role: 'gm'
+        success: true,
+        user: {
+          id: '1',
+          name: 'Demo User',
+          email: 'demo@gm.com',
+          role: 'gm',
+          department: 'Management',
+          status: 'online'
+        }
       };
     }
 
@@ -123,31 +157,28 @@ class ApiService {
         return {
           data: [
             {
-              id: 1,
+              id: '1',
               name: 'Demo GM',
               email: 'demo@gm.com',
               role: 'gm',
               department: 'Management',
-              status: 'online',
-              password: 'password'
+              status: 'online'
             },
             {
-              id: 2,
+              id: '2',
               name: 'Demo Manager',
               email: 'demo@manager.com',
               role: 'manager',
               department: 'Operations',
-              status: 'online',
-              password: 'password'
+              status: 'online'
             },
             {
-              id: 3,
+              id: '3',
               name: 'Demo Employee',
               email: 'demo@employee.com',
               role: 'employee',
               department: 'Development',
-              status: 'online',
-              password: 'password'
+              status: 'online'
             }
           ]
         };
@@ -155,34 +186,34 @@ class ApiService {
 
       if (method === 'POST') {
         return {
-          data: {
-            id: Math.floor(Math.random() * 1000) + 10,
+          success: true,
+          user: {
+            id: String(Math.floor(Math.random() * 1000) + 10),
             name: 'New User',
             email: 'newuser@example.com',
             role: 'employee',
             department: 'General',
-            status: 'online',
-            password: 'password123'
+            status: 'online'
           }
         };
       }
 
       if (method === 'PUT') {
         return {
-          data: {
-            id: 1,
+          success: true,
+          user: {
+            id: '1',
             name: 'Updated User',
             email: 'updated@example.com',
             role: 'employee',
             department: 'General',
-            status: 'online',
-            password: 'newpassword123'
+            status: 'online'
           }
         };
       }
 
       if (method === 'DELETE') {
-        return null;
+        return { success: true };
       }
     }
 
@@ -204,14 +235,15 @@ class ApiService {
         return {
           data: [
             {
-              id: 1,
-              user_id: 1,
+              id: '1',
+              user_id: '1',
               date: new Date().toISOString().split('T')[0],
-              start_time: new Date().toISOString(),
-              end_time: null,
+              clock_in: new Date().toISOString(),
+              clock_out: null,
               break_start: null,
               break_end: null,
-              total_hours: 0
+              total_hours: 0,
+              status: 'active'
             }
           ]
         };
@@ -219,28 +251,38 @@ class ApiService {
 
       if (method === 'POST') {
         return {
-          id: Math.floor(Math.random() * 1000) + 10,
-          user_id: 1,
-          date: new Date().toISOString().split('T')[0],
-          start_time: new Date().toISOString(),
-          end_time: null,
-          break_start: null,
-          break_end: null,
-          total_hours: 0
+          data: {
+            id: String(Math.floor(Math.random() * 1000) + 10),
+            user_id: '1',
+            date: new Date().toISOString().split('T')[0],
+            clock_in: new Date().toISOString(),
+            clock_out: null,
+            break_start: null,
+            break_end: null,
+            total_hours: 0,
+            status: 'active'
+          }
         };
       }
 
       if (method === 'PUT') {
         return {
-          id: 1,
-          user_id: 1,
-          date: new Date().toISOString().split('T')[0],
-          start_time: new Date().toISOString(),
-          end_time: new Date().toISOString(),
-          break_start: null,
-          break_end: null,
-          total_hours: 8.0
+          data: {
+            id: '1',
+            user_id: '1',
+            date: new Date().toISOString().split('T')[0],
+            clock_in: new Date().toISOString(),
+            clock_out: new Date().toISOString(),
+            break_start: null,
+            break_end: null,
+            total_hours: 8.0,
+            status: 'complete'
+          }
         };
+      }
+
+      if (method === 'DELETE') {
+        return { success: true };
       }
     }
 
@@ -278,7 +320,7 @@ class ApiService {
   }
 
   async getCurrentUser() {
-    return this.request('/auth/me');
+    return this.request('/auth/profile');
   }
 
   // User Management

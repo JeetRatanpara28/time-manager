@@ -154,46 +154,9 @@ export const initializeTimeData = async (userRole = null) => {
     // Load working times
     await refreshWorkingTimes();
 
-    // Add demo time logs if no data exists and we have a current user
+    // Log if no data exists - user needs to clock in
     if (currentUser.value && timeLogs.value.length === 0) {
-      console.log('No time logs found, adding demo data for testing');
-      const today = new Date();
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-
-      // Create demo time logs for all users (including employees for managers to monitor)
-      const allUsers = users.value;
-      const demoLogs = [];
-
-      allUsers.forEach((user, index) => {
-        // Add today's log
-        demoLogs.push({
-          id: (index * 2) + 1,
-          userId: user.id,
-          date: today.toISOString().split('T')[0],
-          clockIn: '09:00',
-          clockOut: '17:00',
-          breakStart: '12:00',
-          breakEnd: '13:00',
-          status: 'complete',
-          totalHours: 8.0
-        });
-
-        // Add yesterday's log
-        demoLogs.push({
-          id: (index * 2) + 2,
-          userId: user.id,
-          date: yesterday.toISOString().split('T')[0],
-          clockIn: '09:15',
-          clockOut: '17:30',
-          breakStart: '12:30',
-          breakEnd: '13:30',
-          status: 'complete',
-          totalHours: 8.25
-        });
-      });
-
-      timeLogs.value = demoLogs;
+      console.log('ℹ️ No time logs found for current user. User should clock in to start tracking time.');
     }
 
   } catch (err) {
@@ -226,45 +189,67 @@ export const refreshWorkingTimes = async () => {
     const workingTimesResponse = await apiService.getWorkingTimes();
     const workingTimes = workingTimesResponse.data || [];
 
+    console.log('🔄 refreshWorkingTimes: received data', {
+      totalRecords: workingTimes.length,
+      currentUserId: authCurrentUser.value?.id,
+      currentUserRole: authCurrentUser.value?.role
+    });
+
     // Filter working times based on user role
     let filteredWorkingTimes = workingTimes;
 
     if (authCurrentUser.value?.role === 'employee') {
       // Employees only see their own logs
       filteredWorkingTimes = workingTimes.filter(wt => wt.user_id === authCurrentUser.value?.id);
+      console.log('📊 Filtered for employee:', {
+        before: workingTimes.length,
+        after: filteredWorkingTimes.length,
+        userId: authCurrentUser.value?.id
+      });
     } else if (authCurrentUser.value?.role === 'manager') {
       // Managers see their own logs + team logs (for demo, include all employees)
       const teamUserIds = users.value
         .filter(u => u.role === 'employee' || u.id === authCurrentUser.value?.id)
         .map(u => u.id);
       filteredWorkingTimes = workingTimes.filter(wt => teamUserIds.includes(wt.user_id));
+      console.log('📊 Filtered for manager:', {
+        before: workingTimes.length,
+        after: filteredWorkingTimes.length,
+        teamUserIds
+      });
     } else if (authCurrentUser.value?.role === 'gm') {
       // GMs see all logs
       filteredWorkingTimes = workingTimes;
+      console.log('📊 GM sees all logs:', filteredWorkingTimes.length);
     }
 
     // If we have real API data, use it; otherwise keep demo data
     if (filteredWorkingTimes.length > 0) {
+      console.log('✅ Converting filtered working times to timeLogs format');
       // Convert working times to timeLogs format
       timeLogs.value = filteredWorkingTimes.map(wt => {
-        // Ensure status consistency: if end_time exists, must be complete
-        const hasEndTime = !!wt.end_time;
-        const correctStatus = hasEndTime ? 'complete' : 'active';
+        // Ensure status consistency: if clock_out exists, must be complete
+        const hasClockOut = !!wt.clock_out;
+        const correctStatus = hasClockOut ? 'complete' : 'active';
 
         const log = {
           id: wt.id,
           userId: wt.user_id,
           date: wt.date,
-          clockIn: wt.start_time ? new Date(wt.start_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : null,
-          clockOut: wt.end_time ? new Date(wt.end_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : null,
+          clockIn: wt.clock_in ? new Date(wt.clock_in).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : null,
+          clockOut: wt.clock_out ? new Date(wt.clock_out).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : null,
           breakStart: wt.break_start ? new Date(wt.break_start).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : null,
           breakEnd: wt.break_end ? new Date(wt.break_end).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : null,
           status: correctStatus, // Use corrected status
           workingTimeId: wt.id,
-          totalHours: calculateTotalHours(wt.start_time, wt.end_time)
+          totalHours: wt.total_hours ? parseFloat(wt.total_hours) : calculateTotalHours(wt.clock_in, wt.clock_out)
         };
+        
         return log;
       });
+      console.log('✅ Conversion complete. timeLogs.value.length:', timeLogs.value.length);
+    } else {
+      console.log('⚠️ No filtered working times found');
     }
     // If no API data and we have demo data, keep the demo data
 
@@ -278,11 +263,11 @@ export const refreshWorkingTimes = async () => {
 };
 
 // Helper function to calculate total hours
-const calculateTotalHours = (startTime, endTime) => {
-  if (!startTime || !endTime) return 0;
+const calculateTotalHours = (clockIn, clockOut) => {
+  if (!clockIn || !clockOut) return 0;
 
-  const start = new Date(startTime);
-  const end = new Date(endTime);
+  const start = new Date(clockIn);
+  const end = new Date(clockOut);
   const diffMs = end - start;
   return Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
 };
@@ -319,7 +304,7 @@ export const clockIn = async (userInitiated = false) => {
     // Create new working time record via API
     const workingTimeData = {
       user_id: authCurrentUser.value.id,
-      start_time: `${today}T${new Date().toTimeString().split(' ')[0]}`, // ISO format
+      clock_in: `${today}T${new Date().toTimeString().split(' ')[0]}`, // ISO format
       date: today
     };
 
@@ -348,20 +333,35 @@ export const clockOut = async () => {
     const today = new Date().toISOString().split('T')[0];
     // Find the most recent active log for today that doesn't have clock_out
     const activeLog = timeLogs.value
-      .filter(log =>
-        log.userId === authCurrentUser.value.id &&
-        log.date === today &&
-        log.status === 'active' &&
-        log.clockIn && !log.clockOut
-      )
+      .filter(log => {
+        const userMatch = log.userId === authCurrentUser.value.id;
+        const dateMatch = log.date === today;
+        const statusMatch = log.status === 'active';
+        const hasClockIn = !!log.clockIn;
+        const noClockOut = !log.clockOut;
+        
+        console.log('clockOut filter check:', {
+          log,
+          userMatch,
+          dateMatch,
+          statusMatch,
+          hasClockIn,
+          noClockOut,
+          passes: userMatch && dateMatch && statusMatch && hasClockIn && noClockOut
+        });
+        
+        return userMatch && dateMatch && statusMatch && hasClockIn && noClockOut;
+      })
       .sort((a, b) => new Date(b.clockIn) - new Date(a.clockIn))[0]; // Most recent first
+
+    console.log('clockOut: found activeLog:', activeLog);
 
     if (activeLog && activeLog.workingTimeId) {
       const apiService = getApiServiceInstance();
 
       // Update working time record via API
       const workingTimeData = {
-        end_time: `${today}T${new Date().toTimeString().split(' ')[0]}`, // ISO format
+        clock_out: `${today}T${new Date().toTimeString().split(' ')[0]}`, // ISO format
       };
 
       await apiService.updateWorkingTime(activeLog.workingTimeId, workingTimeData);
@@ -402,19 +402,21 @@ export const startBreak = async () => {
         const userMatch = log.userId === authCurrentUser.value.id;
         const dateMatch = log.date === today;
         const statusMatch = log.status === 'active';
-        const clockInMatch = log.clockIn && !log.clockOut;
-        const breakMatch = (!log.breakStart || log.breakEnd); // No active break
+        const hasClockIn = !!log.clockIn;
+        const noClockOut = !log.clockOut;
+        const noActiveBreak = !log.breakStart || !!log.breakEnd; // No active break (either no break started OR break has ended)
 
         console.log('startBreak filter check:', {
           userMatch,
           dateMatch,
           statusMatch,
-          clockInMatch,
-          breakMatch,
-          passes: userMatch && dateMatch && statusMatch && clockInMatch && breakMatch
+          hasClockIn,
+          noClockOut,
+          noActiveBreak,
+          passes: userMatch && dateMatch && statusMatch && hasClockIn && noClockOut && noActiveBreak
         });
 
-        return userMatch && dateMatch && statusMatch && clockInMatch && breakMatch;
+        return userMatch && dateMatch && statusMatch && hasClockIn && noClockOut && noActiveBreak;
       })
       .sort((a, b) => new Date(b.clockIn) - new Date(a.clockIn))[0]; // Most recent first
 
@@ -458,13 +460,17 @@ export const endBreak = async () => {
     const today = new Date().toISOString().split('T')[0];
     // Find the most recent active log for today that has an active break (break started but not ended)
     const activeLog = timeLogs.value
-      .filter(log =>
-        log.userId === authCurrentUser.value.id &&
-        log.date === today &&
-        log.status === 'active' &&
-        log.clockIn && !log.clockOut &&
-        log.breakStart && !log.breakEnd // Active break (break started but not ended)
-      )
+      .filter(log => {
+        const userMatch = log.userId === authCurrentUser.value.id;
+        const dateMatch = log.date === today;
+        const statusMatch = log.status === 'active';
+        const hasClockIn = !!log.clockIn;
+        const noClockOut = !log.clockOut;
+        const hasBreakStart = !!log.breakStart;
+        const noBreakEnd = !log.breakEnd;
+        
+        return userMatch && dateMatch && statusMatch && hasClockIn && noClockOut && hasBreakStart && noBreakEnd;
+      })
       .sort((a, b) => new Date(b.clockIn) - new Date(a.clockIn))[0]; // Most recent first
 
     if (activeLog && activeLog.workingTimeId) {

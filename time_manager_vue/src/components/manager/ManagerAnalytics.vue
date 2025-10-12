@@ -40,7 +40,7 @@
       </div>
     </div>
 
-    <!-- Work Hours Chart (Simplified) -->
+    <!-- Work Hours Chart -->
     <div class="chart-section">
       <h3>Weekly Hours Overview</h3>
       <div class="chart-placeholder">
@@ -130,70 +130,55 @@
 
 <script setup>
 import { computed, ref, onMounted } from 'vue';
+import { useManagerStore } from '@/composables/useManagerStore.js' // Import manager store
+import { useAuthStore } from '@/composables/useAuthStore.js'; // Import auth store for current user
 
-// We need to handle the async loading of the manager store
-const weeklyHours = ref(null);
-const monthlyHours = ref(null);
-const recentLogs = ref(null);
+// Initialize stores
+const managerStore = useManagerStore();
+const authStore = useAuthStore();
 
-// Load the store data when component mounts
-onMounted(async () => {
-  try {
-    const managerStore = await import('@/composables/useManagerStore.js');
-    
-    // Wait a bit for the store to initialize
-    setTimeout(() => {
-      weeklyHours.value = managerStore.weeklyHours;
-      monthlyHours.value = managerStore.monthlyHours;
-      recentLogs.value = managerStore.recentLogs;
-    }, 100);
-  } catch (err) {
-    console.error('Failed to load manager store:', err);
-  }
-});
-
-// Mock data for demonstration
-const weekData = [
-  { day: 'Mon', hours: 8.5, percentage: 85 },
-  { day: 'Tue', hours: 7.0, percentage: 70 },
-  { day: 'Wed', hours: 9.0, percentage: 90 },
-  { day: 'Thu', hours: 8.0, percentage: 80 },
-  { day: 'Fri', hours: 7.5, percentage: 75 },
+// Reactive data
+const weeklyHours = ref(0);
+const monthlyHours = ref(0);
+const recentLogs = ref([]);
+const weekData = ref([
+  { day: 'Mon', hours: 0, percentage: 0 },
+  { day: 'Tue', hours: 0, percentage: 0 },
+  { day: 'Wed', hours: 0, percentage: 0 },
+  { day: 'Thu', hours: 0, percentage: 0 },
+  { day: 'Fri', hours: 0, percentage: 0 },
   { day: 'Sat', hours: 0, percentage: 0 },
   { day: 'Sun', hours: 0, percentage: 0 }
-];
+]);
 
-// Safe computed properties that handle null values
+// Computed properties with proper error handling
 const weeklyHoursDisplay = computed(() => {
-  if (!weeklyHours.value) return '0.0';
-  return weeklyHours.value.value || '0.0';
+  return weeklyHours.value ? weeklyHours.value.toFixed(1) : '0.0';
 });
 
 const monthlyHoursDisplay = computed(() => {
-  if (!monthlyHours.value) return '0.0';
-  return monthlyHours.value.value || '0.0';
+  return monthlyHours.value ? monthlyHours.value.toFixed(1) : '0.0';
 });
 
 const recentLogsDisplay = computed(() => {
-  if (!recentLogs.value) return [];
-  const logs = recentLogs.value.value || [];
-  return logs.slice(0, 10);
+  return recentLogs.value || [];
 });
 
 const averageDaily = computed(() => {
   const total = parseFloat(weeklyHoursDisplay.value) || 0;
-  const daysWorked = weekData.filter(d => d.hours > 0).length;
+  const daysWorked = weekData.value.filter(d => d.hours > 0).length;
   return daysWorked > 0 ? (total / daysWorked).toFixed(1) : '0.0';
 });
 
 const longestDay = computed(() => {
-  const maxHours = Math.max(...weekData.map(d => d.hours));
+  const maxHours = Math.max(...weekData.value.map(d => d.hours));
   return maxHours > 0 ? maxHours.toFixed(1) : '0.0';
 });
 
 const workedDaysThisMonth = computed(() => {
-  // Mock calculation for demonstration
-  return Math.floor(Math.random() * 15) + 10; // Random between 10-25
+  return recentLogs.value
+    ? new Set(recentLogs.value.map(log => log.date?.substring(0, 10))).size
+    : 0;
 });
 
 const averageHoursPerDay = computed(() => {
@@ -203,14 +188,23 @@ const averageHoursPerDay = computed(() => {
 });
 
 const mostProductiveDay = computed(() => {
-  // Mock data for demonstration
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-  return days[Math.floor(Math.random() * days.length)];
+  // Find day with most hours from weekData
+  const maxDay = weekData.value.reduce((max, day) => 
+    day.hours > max.hours ? day : max, { hours: 0, day: 'N/A' });
+  return maxDay.day;
 });
 
 const consistencyScore = computed(() => {
-  // Mock consistency score
-  return Math.floor(Math.random() * 30) + 70; // 70-100%
+  // Calculate consistency score based on standard deviation of daily hours
+  const workDays = weekData.value.filter(d => d.hours > 0);
+  if (workDays.length <= 1) return 0;
+  
+  const avg = workDays.reduce((sum, d) => sum + d.hours, 0) / workDays.length;
+  const variance = workDays.reduce((sum, d) => sum + Math.pow(d.hours - avg, 2), 0) / workDays.length;
+  const stdDev = Math.sqrt(variance);
+  
+  // Convert to score (lower std dev = higher consistency)
+  return Math.max(0, Math.min(100, Math.round(100 - (stdDev / avg) * 50)));
 });
 
 const formatDate = (dateString) => {
@@ -234,33 +228,75 @@ const formatDate = (dateString) => {
   }
 };
 
-const exportPersonalLogs = (period) => {
-  // In real implementation, this would export the manager's personal logs
-  console.log('Exporting personal logs for period:', period);
-
-  // Mock CSV export for demonstration
-  const headers = ['Date', 'Clock In', 'Clock Out', 'Total Hours', 'Status'];
-  const logs = recentLogsDisplay.value || [];
-  const mockData = logs.map(log => [
-    log.date || '',
-    log.clockIn || '',
-    log.clockOut || '',
-    log.totalHours || '',
-    log.status || ''
-  ]);
-
-  const csvContent = [headers, ...mockData].map(row =>
-    row.map(cell => `"${cell}"`).join(',')
-  ).join('\n');
-
-  const blob = new Blob([csvContent], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `personal_logs_${period}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+// Load actual weekly hours data from API or store
+const loadWeeklyData = async () => {
+  try {
+    const userId = authStore.user?.id;
+    if (!userId) return;
+    
+    const data = await managerStore.fetchWeeklyHours(userId);
+    
+    // Update chart data
+    if (data && data.length) {
+      data.forEach((dayData) => {
+        const dayIndex = weekData.value.findIndex(d => d.day === dayData.day);
+        if (dayIndex >= 0) {
+          weekData.value[dayIndex].hours = dayData.hours;
+          weekData.value[dayIndex].percentage = Math.min(100, Math.round(dayData.hours * 10));
+        }
+      });
+      
+      // Calculate weekly hours total
+      weeklyHours.value = data.reduce((sum, day) => sum + day.hours, 0);
+    }
+  } catch (error) {
+    console.error('Failed to load weekly hours:', error);
+  }
 };
+
+const exportPersonalLogs = async (period) => {
+  try {
+    const userId = authStore.user?.id;
+    if (!userId) {
+      alert('User information not available');
+      return;
+    }
+    
+    await managerStore.exportUserLogs(userId, period);
+    alert(`Logs for ${period} have been exported`);
+  } catch (error) {
+    console.error(`Failed to export logs for ${period}:`, error);
+    alert(`Failed to export logs. Please try again.`);
+  }
+};
+
+// Load data when component mounts
+onMounted(async () => {
+  try {
+    // Wait for auth store to be ready
+    if (!authStore.user) {
+      await authStore.fetchCurrentUser();
+    }
+    
+    // Fetch analytics data for current user
+    const userId = authStore.user?.id;
+    if (!userId) {
+      console.error('User ID not available for analytics');
+      return;
+    }
+    
+    // Load weekly hours and chart data
+    await loadWeeklyData();
+    
+    // Load monthly hours
+    monthlyHours.value = await managerStore.fetchMonthlyHours(userId);
+    
+    // Load recent logs
+    recentLogs.value = await managerStore.fetchRecentLogs(userId);
+  } catch (error) {
+    console.error('Failed to initialize analytics:', error);
+  }
+});
 </script>
 
 <style scoped>

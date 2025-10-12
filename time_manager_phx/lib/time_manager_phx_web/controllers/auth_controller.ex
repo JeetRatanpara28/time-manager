@@ -48,9 +48,6 @@ defmodule TimeManagerPhxWeb.AuthController do
   User registration endpoint (for GM to create users)
   """
   def register(conn, %{"user" => user_params}) do
-    # Check if current user is GM (this would need to be implemented with middleware)
-    # For now, we'll allow registration but in production you'd want role-based access control
-
     with {:ok, %User{} = user} <- Accounts.register_user(user_params) do
       conn
       |> put_status(:created)
@@ -71,7 +68,7 @@ defmodule TimeManagerPhxWeb.AuthController do
   Get current user profile
   """
   def profile(conn, _params) do
-    user = Guardian.Plug.current_resource(conn)
+    user = conn.assigns[:current_user]
 
     case user do
       nil ->
@@ -104,8 +101,8 @@ defmodule TimeManagerPhxWeb.AuthController do
   Refresh JWT token
   """
   def refresh(conn, %{"refresh_token" => refresh_token}) do
-    case Guardian.exchange(refresh_token, "refresh", "access") do
-      {:ok, _old, {new_token, _new_claims}} ->
+    case Guardian.refresh_access_token(refresh_token) do
+      {:ok, new_token, _new_claims} ->
         conn
         |> put_status(:ok)
         |> json(%{
@@ -127,9 +124,6 @@ defmodule TimeManagerPhxWeb.AuthController do
   User logout (client-side token removal)
   """
   def logout(conn, _params) do
-    # JWT is stateless, so logout is handled client-side by removing the token
-    # You could implement token blacklisting here if needed
-
     conn
     |> put_status(:ok)
     |> json(%{

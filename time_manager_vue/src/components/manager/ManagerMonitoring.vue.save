@@ -1,0 +1,699 @@
+OOOOOAOOOA<template>
+  <div class="manager-monitoring">
+    <div class="header">
+      <h2>Employee Monitoring</h2>
+      <p>Real-time status and activity monitoring of your team</p>
+    </div>
+
+    <!-- Live Status Overview -->
+    <div class="status-overview">
+      <div class="status-card online">
+        <div class="status-icon">🟢</div>
+        <div class="status-content">
+          <h3>{{ onlineEmployees }}</h3>
+          <p>Online Now</p>
+        </div>
+      </div>
+
+      <div class="status-card offline">
+        <div class="status-icon">🔴</div>
+        <div class="status-content">
+          <h3>{{ offlineEmployees }}</h3>
+          <p>Offline</p>
+        </div>
+      </div>
+
+      <div class="status-card active">
+        <div class="status-icon">⏰</div>
+        <div class="status-content">
+          <h3>{{ activeToday }}</h3>
+          <p>Active Today</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Team Productivity Chart -->
+    <div class="chart-section">
+      <h3>Team Productivity Overview</h3>
+      <div class="chart-placeholder">
+        <div class="chart-bar" v-for="(day, index) in teamProductivityData" :key="index">
+          <div class="bar-fill" :style="{ height: day.percentage + '%' }">
+            <span class="bar-value">{{ day.productivity }}%</span>
+          </div>
+          <span class="bar-label">{{ day.day }}</span>
+        </div>
+      </div>
+      <div class="chart-legend">
+        <span class="legend-item">
+          <span class="legend-color"></span>
+          Team Productivity
+        </span>
+      </div>
+    </div>
+
+    <!-- Employee Status Table -->
+    <div class="employees-table">
+      <div class="table-header">
+        <div class="col-employee">Employee</div>
+        <div class="col-status">Status</div>
+        <div class="col-today">Today's Activity</div>
+        <div class="col-actions">Actions</div>
+      </div>
+
+      <div v-for="employee in employees" :key="employee.id" class="table-row">
+        <div class="col-employee">
+          <div class="employee-info">
+            <div class="employee-avatar">{{ getInitials(employee.name) }}</div>
+            <div class="employee-details">
+              <span class="employee-name">{{ employee.name }}</span>
+              <span class="employee-email">{{ employee.email }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-status">
+          <span class="status-badge" :class="getEmployeeStatus(employee)">
+            {{ getEmployeeStatus(employee) === 'online' ? 'Online' :
+               getEmployeeStatus(employee) === 'active' ? 'Working' : 'Offline' }}
+          </span>
+        </div>
+
+        <div class="col-today">
+          <div class="today-activity">
+            <div class="activity-item">
+              <span class="label">Clock In:</span>
+              <span class="value">{{ getTodayActivity(employee).clockIn || '--:--' }}</span>
+            </div>
+            <div class="activity-item">
+              <span class="label">Hours:</span>
+              <span class="value">{{ getTodayActivity(employee).hours || 0 }}h</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-actions">
+          <button class="action-btn view" @click="viewEmployeeLogs(employee)" title="View Logs">
+            📋
+          </button>
+          <button class="action-btn export" @click="exportEmployeeLogs(employee)" title="Export CSV">
+            📊
+          </button>
+        </div>
+      </div>
+
+      <div v-if="employees.length === 0" class="no-employees">
+        <p>No employees assigned to your team</p>
+      </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="quick-stats">
+      <h3>Today's Team Summary</h3>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="stat-value">{{ teamStats.totalMembers }}</span>
+          <span class="stat-label">Total Team</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">{{ teamStats.activeNow }}</span>
+          <span class="stat-label">Currently Working</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">{{ teamStats.onBreak }}</span>
+          <span class="stat-label">On Break</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">{{ teamStats.completedToday }}</span>
+          <span class="stat-label">Completed Today</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { computed, ref, onMounted } from 'vue';
+import { useManagerStore } from '@/stores/manager';
+import { useAuthStore } from '@/composables/useAuthStore.js';
+
+// Initialize stores
+const managerStore = useManagerStore();
+const authStore = useAuthStore();
+
+// Reactive data
+const employeeData = ref([]);
+const teamStatsData = ref({
+  totalMembers: 0,
+  activeNow: 0,
+  onBreak: 0,
+  completedToday: 0
+});
+const teamProductivityData = ref([
+  { day: 'Mon', productivity: 0, percentage: 0 },
+  { day: 'Tue', productivity: 0, percentage: 0 },
+  { day: 'Wed', productivity: 0, percentage: 0 },
+  { day: 'Thu', productivity: 0, percentage: 0 },
+  { day: 'Fri', productivity: 0, percentage: 0 }
+]);
+const todayActivities = ref({});
+
+// Computed properties
+const employees = computed(() => {
+  return employeeData.value.filter(u => u.role === 'employee');
+});
+
+const teamStats = computed(() => {
+  return teamStatsData.value;
+});
+
+const onlineEmployees = computed(() => {
+  return employees.value.filter(emp => getEmployeeStatus(emp) === 'online').length;
+});
+
+const offlineEmployees = computed(() => {
+  return employees.value.filter(emp => getEmployeeStatus(emp) === 'offline').length;
+});
+
+const activeToday = computed(() => {
+  return employees.value.filter(emp => getTodayActivity(emp).clockIn).length;
+});
+
+// Helper functions
+const getInitials = (name) => {
+  if (!name) return '?';
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+};
+
+const getEmployeeStatus = (employee) => {
+  if (!employee || !todayActivities.value[employee.id]) {
+    return 'offline';
+  }
+  
+  const activity = todayActivities.value[employee.id];
+  if (activity.clockIn && !activity.clockOut) {
+    return activity.status === 'break' ? 'online' : 'active';
+  }
+  
+  return activity.isOnline ? 'online' : 'offline';
+};
+
+const getTodayActivity = (employee) => {
+  if (!employee || !todayActivities.value[employee.id]) {
+    return { clockIn: null, hours: 0 };
+  }
+  
+  return todayActivities.value[employee.id];
+};
+
+const viewEmployeeLogs = (employee) => {
+  if (!employee) return;
+  
+  // Navigate to employee logs view
+  managerStore.setSelectedEmployee(employee);
+  // Use router to navigate
+  window.location.href = `/manager/employee/${employee.id}/logs`;
+};
+
+const exportEmployeeLogs = async (employee) => {
+  if (!employee) return;
+  
+  try {
+    await managerStore.exportEmployeeLogs(employee.id);
+    alert(`Logs for ${employee.name} have been exported`);
+  } catch (error) {
+    console.error(`Failed to export logs for ${employee.name}:`, error);
+    alert('Failed to export logs. Please try again.');
+  }
+};
+
+// Fetch real data from API
+const loadEmployeeData = async () => {
+  try {
+    const managerId = authStore.user?.id;
+    if (!managerId) return;
+    
+    // Fetch team members
+    const teamMembers = await managerStore.fetchTeamMembers(managerId);
+    employeeData.value = teamMembers || [];
+    
+    // Fetch today's activities for each team member
+    const activities = await managerStore.fetchTodayActivities(
+      teamMembers.map(m => m.id)
+    );
+    
+    // Format activities data
+    if (activities) {
+      todayActivities.value = activities.reduce((acc, act) => {
+        acc[act.employeeId] = act;
+        return acc;
+      }, {});
+    }
+  } catch (error) {
+    console.error('Failed to load employee data:', error);
+  }
+};
+
+const loadTeamStats = async () => {
+  try {
+    const managerId = authStore.user?.id;
+    if (!managerId) return;
+    
+    // Fetch team stats
+    const stats = await managerStore.fetchTeamStats(managerId);
+    if (stats) {
+      teamStatsData.value = stats;
+    }
+    
+    // Fetch productivity data
+    const productivity = await managerStore.fetchTeamProductivity(managerId);
+    if (productivity && productivity.length) {
+      productivity.forEach(day => {
+        const dayIndex = teamProductivityData.value.findIndex(d => d.day === day.day);
+        if (dayIndex >= 0) {
+          teamProductivityData.value[dayIndex].productivity = day.productivity;
+          teamProductivityData.value[dayIndex].percentage = day.productivity;
+        }
+      });
+}
+} catch (error) {
+  console.error('Failed to load team productivity data:', error);
+}
+};
+
+// Initialize data on component mount
+onMounted(async () => {
+try {
+  // Make sure auth data is loaded
+  if (!authStore.user) {
+    await authStore.fetchCurrentUser();
+  }
+  
+  // Load all required data
+  await Promise.all([
+    loadEmployeeData(),
+    loadTeamStats()
+  ]);
+  
+  // Set up real-time updates if available
+  if (managerStore.subscribeToEmployeeStatusUpdates) {
+    managerStore.subscribeToEmployeeStatusUpdates((updates) => {
+      // Update employee statuses in real-time
+      updates.forEach(update => {
+        if (todayActivities.value[update.employeeId]) {
+          todayActivities.value[update.employeeId] = {
+            ...todayActivities.value[update.employeeId],
+            ...update
+          };
+        } else {
+          todayActivities.value[update.employeeId] = update;
+        }
+      });
+    });
+  }
+} catch (error) {
+  console.error('Failed to initialize monitoring component:', error);
+}
+});
+</script>
+
+<style scoped>
+
+.chart-section {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  margin-bottom: 2rem;
+}
+
+.chart-section h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 1.5rem;
+}
+
+.chart-placeholder {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  height: 200px;
+  margin-bottom: 1rem;
+  padding: 0 1rem;
+}
+
+.chart-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  margin: 0 0.25rem;
+}
+
+.bar-fill {
+  width: 40px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 4px 4px 0 0;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.25rem;
+  min-height: 20px;
+  transition: height 0.3s ease;
+}
+
+.bar-label {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 2px;
+}
+
+.manager-monitoring {
+  padding: 2rem;
+}
+
+.header {
+  margin-bottom: 2rem;
+}
+
+.header h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.5rem;
+}
+
+.header p {
+  color: #64748b;
+  font-size: 1.1rem;
+}
+
+.status-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.status-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: transform 0.2s ease;
+}
+
+.status-card:hover {
+  transform: translateY(-2px);
+}
+
+.status-card.online {
+  border-left: 4px solid #10b981;
+}
+
+.status-card.offline {
+  border-left: 4px solid #ef4444;
+}
+
+.status-card.active {
+  border-left: 4px solid #3b82f6;
+}
+
+.status-icon {
+  font-size: 2rem;
+}
+
+.status-content h3 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.25rem 0;
+}
+
+.status-content p {
+  color: #64748b;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.employees-table {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  margin-bottom: 2rem;
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.5fr 1fr;
+  gap: 1rem;
+  padding: 1rem 2rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.5fr 1fr;
+  gap: 1rem;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid #f1f5f9;
+  align-items: center;
+  transition: background-color 0.2s ease;
+}
+
+.table-row:hover {
+  background: #f8fafc;
+}
+
+.table-row:last-child {
+  border-bottom: none;
+}
+
+.col-employee {
+  display: flex;
+  align-items: center;
+}
+
+.employee-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.employee-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.employee-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.employee-name {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.employee-email {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.status-badge.online {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge.active {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-badge.offline {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.today-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.activity-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.activity-item .label {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.activity-item .value {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 0.9rem;
+}
+
+.col-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.action-btn {
+  padding: 0.5rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.action-btn.view:hover {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.action-btn.export:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.no-employees {
+  padding: 3rem;
+  text-align: center;
+  color: #6b7280;
+}
+
+.quick-stats {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.quick-stats h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 1.5rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1.5rem;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 1rem;
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  border-radius: 8px;
+}
+
+.stat-value {
+  display: block;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.25rem;
+}
+
+.stat-label {
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .manager-monitoring {
+    padding: 1rem;
+  }
+
+  .status-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .table-header,
+  .table-row {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    padding: 1rem;
+  }
+
+  .col-employee,
+  .col-status,
+  .col-today,
+  .col-actions {
+    padding: 0.5rem 0;
+  }
+
+  .employee-info {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .today-activity {
+    text-align: center;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

@@ -145,19 +145,11 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { useAuthStore } from '@/composables/useAuthStore.js'; // Import auth store
 
-// Mock current user data - in real app this would come from the store
-const currentUser = ref({
-  id: 1,
-  name: 'John Manager',
-  email: 'john.manager@company.com',
-  phone: '+1 (555) 123-4567',
-  department: 'Engineering',
-  jobTitle: 'Engineering Manager',
-  employeeId: 'EMP001',
-  managerSince: '2022-03-15',
-  teamSize: 8
-});
+// Get the current user from auth store
+const authStore = useAuthStore();
+const currentUser = computed(() => authStore.user); // Use computed to keep reactivity
 
 const isLoading = ref(false);
 
@@ -193,11 +185,8 @@ const saveProfile = async () => {
   isLoading.value = true;
 
   try {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // In real implementation, this would make an API call to update the profile
-    console.log('Saving profile:', profileForm.value);
+    // API call to update profile
+    await authStore.updateUserProfile(profileForm.value);
 
     // Update original form data
     originalForm.value = { ...profileForm.value };
@@ -266,24 +255,31 @@ const validateForm = () => {
   return true;
 };
 
-onMounted(() => {
+onMounted(async () => {
+  // Wait for user data to be loaded
+  if (!currentUser.value) {
+    await authStore.fetchCurrentUser();
+  }
+  
   // Initialize form with current user data
-  profileForm.value = {
-    name: currentUser.value.name,
-    email: currentUser.value.email,
-    phone: currentUser.value.phone,
-    department: currentUser.value.department,
-    jobTitle: currentUser.value.jobTitle,
-    employeeId: currentUser.value.employeeId,
-    managerSince: currentUser.value.managerSince,
-    teamSize: currentUser.value.teamSize,
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  };
-
-  // Store original data
-  originalForm.value = { ...profileForm.value };
+  if (currentUser.value) {
+    profileForm.value = {
+      name: currentUser.value.name || '',
+      email: currentUser.value.email || '',
+      phone: currentUser.value.phone || '',
+      department: currentUser.value.department || '',
+      jobTitle: currentUser.value.jobTitle || '',
+      employeeId: currentUser.value.employeeId || '',
+      managerSince: currentUser.value.managerSince || '',
+      teamSize: currentUser.value.teamSize || '',
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    };
+    
+    // Store original data
+    originalForm.value = { ...profileForm.value };
+  }
 });
 </script>
 

@@ -32,6 +32,25 @@
       </div>
     </div>
 
+    <!-- Team Productivity Chart -->
+    <div class="chart-section">
+      <h3>Team Productivity Overview</h3>
+      <div class="chart-placeholder">
+        <div class="chart-bar" v-for="(day, index) in teamProductivityData" :key="index">
+          <div class="bar-fill" :style="{ height: day.percentage + '%' }">
+            <span class="bar-value">{{ day.productivity }}%</span>
+          </div>
+          <span class="bar-label">{{ day.day }}</span>
+        </div>
+      </div>
+      <div class="chart-legend">
+        <span class="legend-item">
+          <span class="legend-color"></span>
+          Team Productivity
+        </span>
+      </div>
+    </div>
+
     <!-- Employee Status Table -->
     <div class="employees-table">
       <div class="table-header">
@@ -113,65 +132,266 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { users, teamStats, exportTeamLogsToCSV } from '@/composables/useManagerStore.js';
+import { computed, ref, onMounted } from 'vue';
+import { useManagerStore } from '@/composables/useManagerStore.js';
+import { useAuthStore } from '@/composables/useAuthStore.js';
 
-const employees = computed(() =>
-  users.value.filter(u => u.role === 'employee')
-);
+// Initialize stores
+const managerStore = useManagerStore();
+const authStore = useAuthStore();
 
-const onlineEmployees = computed(() =>
-  employees.value.filter(emp => getEmployeeStatus(emp) === 'online').length
-);
+// Reactive data
+const employeeData = ref([]);
+const teamStatsData = ref({
+  totalMembers: 0,
+  activeNow: 0,
+  onBreak: 0,
+  completedToday: 0
+});
+const teamProductivityData = ref([
+  { day: 'Mon', productivity: 0, percentage: 0 },
+  { day: 'Tue', productivity: 0, percentage: 0 },
+  { day: 'Wed', productivity: 0, percentage: 0 },
+  { day: 'Thu', productivity: 0, percentage: 0 },
+  { day: 'Fri', productivity: 0, percentage: 0 }
+]);
+const todayActivities = ref({});
 
-const offlineEmployees = computed(() =>
-  employees.value.filter(emp => getEmployeeStatus(emp) === 'offline').length
-);
+// Computed properties
+const employees = computed(() => {
+  return employeeData.value.filter(u => u.role === 'employee');
+});
 
-const activeToday = computed(() =>
-  employees.value.filter(emp => getTodayActivity(emp).clockIn).length
-);
+const teamStats = computed(() => {
+  return teamStatsData.value;
+});
 
+const onlineEmployees = computed(() => {
+  return employees.value.filter(emp => getEmployeeStatus(emp) === 'online').length;
+});
+
+const offlineEmployees = computed(() => {
+  return employees.value.filter(emp => getEmployeeStatus(emp) === 'offline').length;
+});
+
+const activeToday = computed(() => {
+  return employees.value.filter(emp => getTodayActivity(emp).clockIn).length;
+});
+
+// Helper functions
 const getInitials = (name) => {
   if (!name) return '?';
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 };
 
 const getEmployeeStatus = (employee) => {
-  // For demo purposes, simulate online/offline status
-  // In real implementation, this would come from a live status API
-  const todayActivity = getTodayActivity(employee);
-  if (todayActivity.clockIn && !todayActivity.clockOut) {
-    return 'active'; // Currently working
+  if (!employee || !todayActivities.value[employee.id]) {
+    return 'offline';
   }
-  // Simulate some employees being online
-  return Math.random() > 0.6 ? 'online' : 'offline';
+  
+  const activity = todayActivities.value[employee.id];
+  if (activity.clockIn && !activity.clockOut) {
+    return activity.status === 'break' ? 'online' : 'active';
+  }
+  
+  return activity.isOnline ? 'online' : 'offline';
 };
 
 const getTodayActivity = (employee) => {
-  // Mock data for demonstration - in real app this would come from API
-  const today = new Date().toISOString().split('T')[0];
-  const mockData = {
-    '1': { clockIn: '09:00', hours: 7.5 },
-    '2': { clockIn: '08:30', clockOut: '17:00', hours: 8.5 },
-    '3': { clockIn: '09:15', hours: 6.0 },
-    '4': { clockIn: null, hours: 0 }
-  };
-  return mockData[employee.id] || { clockIn: null, hours: 0 };
+  if (!employee || !todayActivities.value[employee.id]) {
+    return { clockIn: null, hours: 0 };
+  }
+  
+  return todayActivities.value[employee.id];
 };
 
 const viewEmployeeLogs = (employee) => {
+  if (!employee) return;
+  
   // Navigate to employee logs view
-  console.log('Viewing logs for:', employee.name);
-  // In real implementation, this would navigate to logs view with employee filter
+  managerStore.setSelectedEmployee(employee);
+  // Use router to navigate
+  window.location.href = `/manager/employee/${employee.id}/logs`;
 };
 
-const exportEmployeeLogs = (employee) => {
-  exportTeamLogsToCSV(employee.id);
+const exportEmployeeLogs = async (employee) => {
+  if (!employee) return;
+  
+  try {
+    await managerStore.exportEmployeeLogs(employee.id);
+    alert(`Logs for ${employee.name} have been exported`);
+  } catch (error) {
+    console.error(`Failed to export logs for ${employee.name}:`, error);
+    alert('Failed to export logs. Please try again.');
+  }
 };
+
+// Fetch real data from API
+const loadEmployeeData = async () => {
+  try {
+    const managerId = authStore.user?.id;
+    if (!managerId) return;
+    
+    // Fetch team members
+    const teamMembers = await managerStore.fetchTeamMembers(managerId);
+    employeeData.value = teamMembers || [];
+    
+    // Fetch today's activities for each team member
+    const activities = await managerStore.fetchTodayActivities(
+      teamMembers.map(m => m.id)
+    );
+    
+    // Format activities data
+    if (activities) {
+      todayActivities.value = activities.reduce((acc, act) => {
+        acc[act.employeeId] = act;
+        return acc;
+      }, {});
+    }
+  } catch (error) {
+    console.error('Failed to load employee data:', error);
+  }
+};
+
+const loadTeamStats = async () => {
+  try {
+    const managerId = authStore.user?.id;
+    if (!managerId) return;
+    
+    // Fetch team stats
+    const stats = await managerStore.fetchTeamStats(managerId);
+    if (stats) {
+      teamStatsData.value = stats;
+    }
+    
+    // Fetch productivity data
+    const productivity = await managerStore.fetchTeamProductivity(managerId);
+    if (productivity && productivity.length) {
+      productivity.forEach(day => {
+        const dayIndex = teamProductivityData.value.findIndex(d => d.day === day.day);
+        if (dayIndex >= 0) {
+          teamProductivityData.value[dayIndex].productivity = day.productivity;
+          teamProductivityData.value[dayIndex].percentage = day.productivity;
+        }
+      });
+}
+} catch (error) {
+  console.error('Failed to load team productivity data:', error);
+}
+};
+
+// Initialize data on component mount
+onMounted(async () => {
+try {
+  // Make sure auth data is loaded
+  if (!authStore.user) {
+    await authStore.fetchCurrentUser();
+  }
+  
+  // Load all required data
+  await Promise.all([
+    loadEmployeeData(),
+    loadTeamStats()
+  ]);
+  
+  // Set up real-time updates if available
+  if (managerStore.subscribeToEmployeeStatusUpdates) {
+    managerStore.subscribeToEmployeeStatusUpdates((updates) => {
+      // Update employee statuses in real-time
+      updates.forEach(update => {
+        if (todayActivities.value[update.employeeId]) {
+          todayActivities.value[update.employeeId] = {
+            ...todayActivities.value[update.employeeId],
+            ...update
+          };
+        } else {
+          todayActivities.value[update.employeeId] = update;
+        }
+      });
+    });
+  }
+} catch (error) {
+  console.error('Failed to initialize monitoring component:', error);
+}
+});
 </script>
 
 <style scoped>
+
+.chart-section {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  margin-bottom: 2rem;
+}
+
+.chart-section h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 1.5rem;
+}
+
+.chart-placeholder {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  height: 200px;
+  margin-bottom: 1rem;
+  padding: 0 1rem;
+}
+
+.chart-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  margin: 0 0.25rem;
+}
+
+.bar-fill {
+  width: 40px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 4px 4px 0 0;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.25rem;
+  min-height: 20px;
+  transition: height 0.3s ease;
+}
+
+.bar-label {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 2px;
+}
+
 .manager-monitoring {
   padding: 2rem;
 }

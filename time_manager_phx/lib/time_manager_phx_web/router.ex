@@ -40,14 +40,11 @@ defmodule TimeManagerPhxWeb.Router do
   scope "/api", TimeManagerPhxWeb do
     pipe_through :api
 
-    # Authentication routes (public)
+    # Authentication routes (public - no auth required)
     post "/auth/login", AuthController, :login
     post "/auth/register", AuthController, :register
     post "/auth/refresh", AuthController, :refresh
     delete "/auth/logout", AuthController, :logout
-
-    # Protected user profile route
-    get "/auth/profile", AuthController, :profile
 
     # CORS preflight handling
     options "/", PageController, :options
@@ -58,9 +55,12 @@ defmodule TimeManagerPhxWeb.Router do
     options "/dashboard/*path", UserController, :options
     options "/auth/*path", AuthController, :options
 
-    # User management routes - Require authentication
+    # Protected routes - require authentication
     scope "/" do
       pipe_through :auth
+
+      # Protected auth route - MOVED HERE to require authentication
+      get "/auth/profile", AuthController, :profile
 
       # User management routes - Full CRUD (requires authentication)
       resources "/users", UserController, except: [:new, :edit]

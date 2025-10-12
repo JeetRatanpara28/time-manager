@@ -1,36 +1,101 @@
 // Employee Store - Now uses universal time store for backward compatibility
 import { computed, ref } from 'vue';
 
-// Avoid top-level destructured import from `useTimeStore.js` to prevent
-// circular import / TDZ errors. We create placeholder exports and wire
-// them to the universal store with a dynamic import.
+// Create placeholder refs that will be wired to universal store
+export const users = ref([]);
+export const timeLogs = ref([]);
+export const currentUser = ref(null);
+export const isLoading = ref(false);
+export const error = ref(null);
 
-export let users = ref([]);
-export let timeLogs = ref([]);
-export let currentUser = ref(null);
-export let isLoading = ref(false);
-export let error = ref(null);
+// Create placeholder computed refs that will be properly wired
+export const todaysLog = ref(null);
+export const weeklyHours = ref('0.0');
+export const monthlyHours = ref('0.0');
+export const recentLogs = ref([]);
 
+// Function placeholders
 let initializeTimeDataFn = async () => {};
 let refreshWorkingTimesFn = async () => {};
 let universalClockInFn = async () => {};
 let universalClockOutFn = async () => {};
 let universalStartBreakFn = async () => {};
 let universalEndBreakFn = async () => {};
-let universalTodaysLogComp = null;
-let universalWeeklyHoursComp = null;
-let universalMonthlyHoursComp = null;
-let universalRecentLogsComp = null;
 
+// Wire up to universal store
 (async () => {
   try {
     const mod = await import('./useTimeStore.js');
-    users = mod.users;
-    timeLogs = mod.timeLogs;
-    currentUser = mod.currentUser;
-    isLoading = mod.isLoading;
-    error = mod.error;
+    
+    // Wire refs
+    users.value = mod.users.value;
+    timeLogs.value = mod.timeLogs.value;
+    currentUser.value = mod.currentUser.value;
+    isLoading.value = mod.isLoading.value;
+    error.value = mod.error.value;
 
+    // Watch for changes in universal store and sync
+    if (mod.users && mod.users.value) {
+      Object.defineProperty(users, 'value', {
+        get: () => mod.users.value,
+        set: (val) => { mod.users.value = val; }
+      });
+    }
+    
+    if (mod.timeLogs && mod.timeLogs.value) {
+      Object.defineProperty(timeLogs, 'value', {
+        get: () => mod.timeLogs.value,
+        set: (val) => { mod.timeLogs.value = val; }
+      });
+    }
+    
+    if (mod.currentUser && mod.currentUser.value) {
+      Object.defineProperty(currentUser, 'value', {
+        get: () => mod.currentUser.value,
+        set: (val) => { mod.currentUser.value = val; }
+      });
+    }
+    
+    if (mod.isLoading && mod.isLoading.value !== undefined) {
+      Object.defineProperty(isLoading, 'value', {
+        get: () => mod.isLoading.value,
+        set: (val) => { mod.isLoading.value = val; }
+      });
+    }
+    
+    if (mod.error && mod.error.value !== undefined) {
+      Object.defineProperty(error, 'value', {
+        get: () => mod.error.value,
+        set: (val) => { mod.error.value = val; }
+      });
+    }
+
+    // Wire computed properties properly
+    if (mod.todaysLog && mod.todaysLog.value !== undefined) {
+      Object.defineProperty(todaysLog, 'value', {
+        get: () => mod.todaysLog.value
+      });
+    }
+    
+    if (mod.weeklyHours && mod.weeklyHours.value !== undefined) {
+      Object.defineProperty(weeklyHours, 'value', {
+        get: () => mod.weeklyHours.value
+      });
+    }
+    
+    if (mod.monthlyHours && mod.monthlyHours.value !== undefined) {
+      Object.defineProperty(monthlyHours, 'value', {
+        get: () => mod.monthlyHours.value
+      });
+    }
+    
+    if (mod.recentLogs && mod.recentLogs.value !== undefined) {
+      Object.defineProperty(recentLogs, 'value', {
+        get: () => mod.recentLogs.value
+      });
+    }
+
+    // Wire functions
     initializeTimeDataFn = mod.initializeTimeData;
     refreshWorkingTimesFn = mod.refreshWorkingTimes;
     universalClockInFn = mod.clockIn;
@@ -38,12 +103,9 @@ let universalRecentLogsComp = null;
     universalStartBreakFn = mod.startBreak;
     universalEndBreakFn = mod.endBreak;
 
-    universalTodaysLogComp = mod.todaysLog;
-    universalWeeklyHoursComp = mod.weeklyHours;
-    universalMonthlyHoursComp = mod.monthlyHours;
-    universalRecentLogsComp = mod.recentLogs;
+    console.log('✅ Employee store wired to universal time store');
   } catch (err) {
-    console.error('Failed to load universal time store for employee store:', err);
+    console.error('❌ Failed to load universal time store for employee store:', err);
   }
 })();
 
@@ -53,14 +115,8 @@ export const initializeEmployeeData = async () => {
 };
 
 // Re-export universal functions with same names for compatibility
-// refreshWorkingTimes is already imported and available
 export const clockIn = (...args) => universalClockInFn(...args);
 export const clockOut = (...args) => universalClockOutFn(...args);
 export const startBreak = (...args) => universalStartBreakFn(...args);
 export const endBreak = (...args) => universalEndBreakFn(...args);
-
-// Re-export universal computed properties - these are already computed in useTimeStore.js
-export const todaysLog = (() => universalTodaysLogComp)();
-export const weeklyHours = (() => universalWeeklyHoursComp)();
-export const monthlyHours = (() => universalMonthlyHoursComp)();
-export const recentLogs = (() => universalRecentLogsComp)();
+export const refreshWorkingTimes = (...args) => refreshWorkingTimesFn(...args);
