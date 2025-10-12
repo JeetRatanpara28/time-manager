@@ -43,6 +43,7 @@
           {{ isLoading ? 'Signing in...' : 'Sign In' }}
         </button>
 
+        <!--
         <div class="demo-credentials">
           <h4>Demo Credentials:</h4>
           <div class="credential-item">
@@ -55,6 +56,7 @@
             <strong>GM:</strong> gm@example.com / password123
           </div>
         </div>
+        -->
       </form>
     </div>
   </div>
