@@ -41,6 +41,7 @@ defmodule TimeManagerPhx.MixProject do
     [
       {:phoenix, "~> 1.8.1"},
       {:phoenix_ecto, "~> 4.5"},
+      {:hackney, "~> 1.9"},
       {:ecto_sql, "~> 3.13"},
       {:postgrex, ">= 0.0.0"},
       {:swoosh, "~> 1.16"},
