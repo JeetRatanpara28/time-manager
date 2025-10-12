@@ -65,37 +65,58 @@
       <div class="chart-container">
         <h3>Hours Worked Trend</h3>
         <div class="chart-area">
-          <div class="y-axis">
-            <span v-for="label in yAxisLabels" :key="label" class="y-label">{{ label }}</span>
-          </div>
           <div class="chart-content">
             <div class="chart-bars">
               <div
                 v-for="(day, index) in chartData"
                 :key="index"
-                class="chart-bar"
-                :style="{ height: `${(day.hours / 10) * 100}%` }"
-                :class="{ weekend: day.isWeekend }"
+                class="bar-group"
               >
-                <span class="bar-tooltip">{{ day.hours }}h</span>
+                <div 
+                  class="chart-bar"
+                  :class="{ weekend: day.isWeekend }"
+                  :style="{ height: `${(day.hours / 10) * 100}%` }"
+                >
+                  <span class="bar-tooltip">{{ day.hours }}h</span>
+                </div>
+                <span class="bar-label">{{ day.label }}</span>
               </div>
-            </div>
-            <div class="x-axis">
-              <span v-for="(day, index) in chartData" :key="index" class="x-label">{{ day.label }}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Weekly Pattern -->
+      <!-- Weekly Pattern - FIXED -->
       <div class="chart-container">
-        <h3>Weekly Pattern</h3>
+        <h3>Weekly Activity Pattern</h3>
         <div class="pattern-chart">
-          <div class="pattern-grid">
-            <div v-for="(hour, index) in weeklyPattern" :key="index" class="pattern-cell">
-              <div class="cell-content" :style="{ opacity: hour / 8 }">
-                <span class="cell-value">{{ hour.toFixed(1) }}h</span>
+          <div class="pattern-wrapper">
+            <div class="pattern-day-labels">
+              <span>Mon</span>
+              <span>Tue</span>
+              <span>Wed</span>
+              <span>Thu</span>
+              <span>Fri</span>
+              <span>Sat</span>
+              <span>Sun</span>
+            </div>
+            <div class="pattern-grid">
+              <div 
+                v-for="(day, dayIndex) in 7" 
+                :key="`day-${dayIndex}`" 
+                class="pattern-row"
+              >
+                <div
+                  v-for="(hour, hourIndex) in 24"
+                  :key="`hour-${hourIndex}`"
+                  class="pattern-cell"
+                  :style="getCellStyle(dayIndex, hourIndex)"
+                  :title="getCellTitle(dayIndex, hourIndex)"
+                />
               </div>
+            </div>
+            <div class="pattern-hour-labels">
+              <span v-for="h in [0, 3, 6, 9, 12, 15, 18, 21, 24]" :key="h">{{ h }}</span>
             </div>
           </div>
           <div class="pattern-legend">
@@ -182,8 +203,47 @@ import { currentUser, timeLogs } from '@/composables/useGmStore.js';
 const selectedPeriod = ref('month');
 const searchQuery = ref('');
 
+// Generate weekly pattern data (7 days x 24 hours)
+const weeklyPattern = computed(() => {
+  const pattern = Array(7 * 24).fill(0);
+  
+  // Simulate work hours: Mon-Fri 9 AM to 6 PM
+  for (let day = 0; day < 5; day++) { // Monday to Friday
+    for (let hour = 9; hour < 18; hour++) {
+      const index = day * 24 + hour;
+      // Peak hours: 10 AM - 4 PM
+      if (hour >= 10 && hour <= 16) {
+        pattern[index] = 7 + Math.random() * 1; // 7-8 hours
+      } else {
+        pattern[index] = 5 + Math.random() * 2; // 5-7 hours
+      }
+    }
+  }
+  
+  return pattern;
+});
+
+// Get cell style for heatmap
+const getCellStyle = (dayIndex, hourIndex) => {
+  const index = dayIndex * 24 + hourIndex;
+  const value = weeklyPattern.value[index];
+  const opacity = value > 0 ? Math.min(value / 8, 1) : 0;
+  
+  return {
+    backgroundColor: value > 0 ? `rgba(16, 185, 129, ${opacity})` : '#f1f5f9'
+  };
+};
+
+// Get cell title for tooltip
+const getCellTitle = (dayIndex, hourIndex) => {
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const index = dayIndex * 24 + hourIndex;
+  const value = weeklyPattern.value[index];
+  return `${days[dayIndex]} ${hourIndex}:00 - ${value.toFixed(1)}h`;
+};
+
 // Mock data for charts
-const chartData = [
+const chartData = ref([
   { label: 'Mon', hours: 8.5, isWeekend: false },
   { label: 'Tue', hours: 7.2, isWeekend: false },
   { label: 'Wed', hours: 9.1, isWeekend: false },
@@ -191,14 +251,7 @@ const chartData = [
   { label: 'Fri', hours: 8.8, isWeekend: false },
   { label: 'Sat', hours: 4.2, isWeekend: true },
   { label: 'Sun', hours: 0, isWeekend: true }
-];
-
-const weeklyPattern = [
-  0, 0, 0, 0, 0, 0, 0, // 12 AM - 6 AM
-  0, 0, 0, 0, 0, 0, 0, // 6 AM - 12 PM
-  8, 8, 8, 8, 7, 7, 7, // 12 PM - 6 PM
-  8, 8, 8, 8, 7, 6, 0  // 6 PM - 12 AM
-];
+]);
 
 const insights = [
   {
@@ -225,8 +278,6 @@ const insights = [
 ];
 
 // Computed properties
-const yAxisLabels = computed(() => ['0h', '2h', '4h', '6h', '8h', '10h']);
-
 const periodLogs = computed(() => {
   if (!currentUser.value || !timeLogs.value) return [];
 
@@ -293,17 +344,14 @@ const avgHoursPerDay = computed(() => {
 });
 
 const efficiency = computed(() => {
-  // Mock efficiency calculation
   return 94;
 });
 
 const hoursTrend = computed(() => {
-  // Mock trend calculation
   return 5.2;
 });
 
 const overtimeTrend = computed(() => {
-  // Mock trend calculation
   return -2.1;
 });
 
@@ -331,11 +379,18 @@ const isWeekend = (dateString) => {
 };
 
 const calculateBreakTime = (log) => {
-  if (!log.breakStart || !log.breakEnd) return 0;
+  if (!log.breakStart || !log.breakEnd) return '0m';
 
   const breakStart = new Date(`2000-01-01T${log.breakStart}:00`);
   const breakEnd = new Date(`2000-01-01T${log.breakEnd}:00`);
-  return Math.floor((breakEnd - breakStart) / (1000 * 60));
+  const minutes = Math.floor((breakEnd - breakStart) / (1000 * 60));
+  
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  }
+  return `${minutes}m`;
 };
 </script>
 
@@ -450,22 +505,8 @@ const calculateBreakTime = (log) => {
 }
 
 .chart-area {
-  display: flex;
   height: 250px;
-}
-
-.y-axis {
   display: flex;
-  flex-direction: column-reverse;
-  justify-content: space-between;
-  padding-right: 1rem;
-  min-width: 40px;
-}
-
-.y-label {
-  font-size: 0.8rem;
-  color: #64748b;
-  font-weight: 500;
 }
 
 .chart-content {
@@ -477,13 +518,21 @@ const calculateBreakTime = (log) => {
 .chart-bars {
   flex: 1;
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   gap: 0.5rem;
-  padding-bottom: 1rem;
+  justify-content: space-around;
+}
+
+.bar-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  max-width: 60px;
 }
 
 .chart-bar {
-  flex: 1;
+  width: 100%;
   background: linear-gradient(135deg, #667eea, #764ba2);
   border-radius: 4px 4px 0 0;
   position: relative;
@@ -514,67 +563,99 @@ const calculateBreakTime = (log) => {
   white-space: nowrap;
   opacity: 0;
   transition: opacity 0.2s ease;
+  margin-bottom: 4px;
 }
 
 .chart-bar:hover .bar-tooltip {
   opacity: 1;
 }
 
-.x-axis {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.x-label {
-  flex: 1;
-  text-align: center;
+.bar-label {
+  margin-top: 0.5rem;
   font-size: 0.8rem;
   color: #64748b;
   font-weight: 500;
 }
 
+/* Weekly Pattern - FIXED */
 .pattern-chart {
   text-align: center;
 }
 
-.pattern-grid {
+.pattern-wrapper {
+  position: relative;
+}
+
+.pattern-day-labels {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 0.25rem;
-  margin-bottom: 1rem;
+  grid-template-rows: repeat(7, 1fr);
+  gap: 2px;
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 600;
+  position: absolute;
+  left: -40px;
+  top: 0;
+  bottom: 20px;
+  width: 35px;
+}
+
+.pattern-day-labels span {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.pattern-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 0.5rem;
+}
+
+.pattern-row {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 2px;
 }
 
 .pattern-cell {
   aspect-ratio: 1;
-  background: #e2e8f0;
-  border-radius: 4px;
-  position: relative;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
 }
 
-.cell-content {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, #10b981, #059669);
-  border-radius: 4px;
+.pattern-cell:hover {
+  transform: scale(1.3);
+  z-index: 10;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
+}
+
+.pattern-hour-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: #64748b;
+  padding: 0 2px;
+  margin-top: 0.5rem;
+}
+
+.pattern-legend {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: opacity 0.2s ease;
-}
-
-.cell-value {
-  color: white;
-  font-size: 0.7rem;
-  font-weight: 600;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: #64748b;
 }
 
 .legend-gradient {
-  display: inline-block;
   width: 100px;
-  height: 10px;
-  background: linear-gradient(to right, #e2e8f0, #10b981);
-  border-radius: 5px;
-  margin: 0 1rem;
+  height: 8px;
+  background: linear-gradient(to right, #f1f5f9, rgba(16, 185, 129, 1));
+  border-radius: 4px;
 }
 
 .insights-section {
@@ -705,6 +786,34 @@ const calculateBreakTime = (log) => {
   background: #fef3c7;
 }
 
+.text-success {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.text-warning {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-badge.completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge.active {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
 @media (max-width: 768px) {
   .time-analysis {
     padding: 1rem;
@@ -732,6 +841,18 @@ const calculateBreakTime = (log) => {
 
   .search-input {
     width: 100%;
+  }
+
+  .pattern-day-labels {
+    position: static;
+    grid-template-columns: repeat(7, 1fr);
+    grid-template-rows: none;
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+
+  .pattern-day-labels span {
+    justify-content: center;
   }
 }
 </style>

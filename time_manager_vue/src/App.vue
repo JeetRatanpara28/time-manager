@@ -1,27 +1,27 @@
 <script setup>
-import { ref, onMounted, watch } from "vue";
-import GmOverview from "@/components/gm/GmOverview.vue";
-import ClockAnalytics from "@/components/gm/ClockAnalytics.vue";
-import UserManagement from "@/components/gm/UserManagement.vue";
-import StatusMonitor from "@/components/gm/StatusMonitor.vue";
-import DailyLogs from "@/components/gm/DailyLogs.vue";
-import ProfileManagement from "@/components/gm/ProfileManagement.vue";
-import TimeAnalysis from "@/components/gm/TimeAnalysis.vue";
-import ManagerOverview from "@/components/manager/ManagerOverview.vue";
-import ManagerMonitoring from "@/components/manager/ManagerMonitoring.vue";
-import ManagerAnalytics from "@/components/manager/ManagerAnalytics.vue";
-import ManagerProfile from "@/components/manager/ManagerProfile.vue";
-import ManagerLogs from "@/components/manager/ManagerLogs.vue";
-import TeamManagement from "@/components/manager/TeamManagement.vue";
-import EmployeeOverview from "@/components/employee/EmployeeOverview.vue";
-import EmployeeClock from "@/components/employee/EmployeeClock.vue";
-import EmployeeLogs from "@/components/employee/EmployeeLogs.vue";
-import Login from "@/components/Login.vue";
-// Universal ClockControl for all roles
-import ClockControl from "@/components/shared/ClockControl.vue";
-import { initializeData } from "@/composables/useGmStore.js";
-import { initializeManagerData } from "@/composables/useManagerStore.js";
-import { initializeEmployeeData } from "@/composables/useEmployeeStore.js";
+import { ref, onMounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import GmOverview from '@/components/gm/GmOverview.vue';
+import ClockAnalytics from '@/components/gm/ClockAnalytics.vue';
+import UserManagement from '@/components/gm/UserManagement.vue';
+import StatusMonitor from '@/components/gm/StatusMonitor.vue';
+import DailyLogs from '@/components/gm/DailyLogs.vue';
+import ProfileManagement from '@/components/gm/ProfileManagement.vue';
+import TimeAnalysis from '@/components/gm/TimeAnalysis.vue';
+import ManagerOverview from '@/components/manager/ManagerOverview.vue';
+import ManagerMonitoring from '@/components/manager/ManagerMonitoring.vue';
+import ManagerAnalytics from '@/components/manager/ManagerAnalytics.vue';
+import ManagerProfile from '@/components/manager/ManagerProfile.vue';
+import ManagerLogs from '@/components/manager/ManagerLogs.vue';
+import TeamManagement from '@/components/manager/TeamManagement.vue';
+import EmployeeOverview from '@/components/employee/EmployeeOverview.vue';
+import EmployeeClock from '@/components/employee/EmployeeClock.vue';
+import EmployeeLogs from '@/components/employee/EmployeeLogs.vue';
+import Login from '@/components/Login.vue';
+import ClockControl from '@/components/shared/ClockControl.vue';
+import { initializeData } from '@/composables/useGmStore.js';
+import { initializeManagerData } from '@/composables/useManagerStore.js';
+import { initializeEmployeeData } from '@/composables/useEmployeeStore.js';
 import {
   isAuthenticated,
   currentUser,
@@ -30,6 +30,9 @@ import {
   getUserRoleDisplay,
   isAuthInitialized,
 } from "@/composables/useAuthStore.js";
+
+const route = useRoute();
+const router = useRouter();
 
 // Navigation state
 const activePanel = ref("gm");
@@ -48,7 +51,33 @@ const normalizeRole = (role) => {
   return roleMap[role] || role;
 };
 
-// Update URL
+// Read view from URL
+const readViewFromUrl = () => {
+  const pathParts = route.path.split('/').filter(p => p);
+  
+  if (pathParts.length === 0) return;
+  
+  const panel = pathParts[0];
+  const view = pathParts[1] || null;
+  
+  console.log('📖 Reading from URL:', { panel, view, path: route.path });
+  
+  // Set active panel
+  if (['gm', 'manager', 'employee'].includes(panel)) {
+    activePanel.value = panel;
+    
+    // Set active view based on panel
+    if (panel === 'gm' && view) {
+      activeGmView.value = view;
+    } else if (panel === 'manager' && view) {
+      activeManagerView.value = view;
+    } else if (panel === 'employee' && view) {
+      activeEmployeeView.value = view;
+    }
+  }
+};
+
+// Update URL when view changes
 const updateUrl = () => {
   const panel = activePanel.value;
   let path = `/${panel}`;
@@ -61,21 +90,50 @@ const updateUrl = () => {
     path += `/${activeEmployeeView.value}`;
   }
 
-  window.history.replaceState(null, "", path);
+  console.log('🔄 Updating URL to:', path);
+  
+  // Use router.replace to update URL without reloading
+  if (route.path !== path) {
+    router.replace(path);
+  }
 };
 
 // Watch for navigation changes
-watch(activePanel, () => updateUrl());
-watch(activeGmView, () => updateUrl());
-watch(activeManagerView, () => updateUrl());
-watch(activeEmployeeView, () => updateUrl());
+watch(activePanel, () => {
+  console.log('📍 Panel changed to:', activePanel.value);
+  updateUrl();
+});
+
+watch(activeGmView, () => {
+  console.log('📍 GM view changed to:', activeGmView.value);
+  updateUrl();
+});
+
+watch(activeManagerView, () => {
+  console.log('📍 Manager view changed to:', activeManagerView.value);
+  updateUrl();
+});
+
+watch(activeEmployeeView, () => {
+  console.log('📍 Employee view changed to:', activeEmployeeView.value);
+  updateUrl();
+});
+
+// Watch for route changes (back/forward browser buttons)
+watch(() => route.path, (newPath) => {
+  console.log('🔙 Route changed (browser navigation):', newPath);
+  readViewFromUrl();
+});
 
 // Initialize on mount
 onMounted(async () => {
+  console.log('🚀 App.vue mounted');
+  
   await initializeAuth();
 
   if (isAuthenticated.value && currentUser.value) {
     const userRole = normalizeRole(currentUser.value.role);
+    console.log('👤 User role:', userRole);
 
     // Set appropriate panel based on role
     if (userRole === "gm") {
@@ -88,6 +146,9 @@ onMounted(async () => {
       activePanel.value = "employee";
       await initializeEmployeeData();
     }
+    
+    // Read view from URL after authentication
+    readViewFromUrl();
   }
 });
 
@@ -151,17 +212,7 @@ const switchToPanel = async (panel) => {
 const handleLogout = async () => {
   try {
     await logout();
-    const userRole = currentUser.value?.role;
-    if (userRole === "gm") {
-      activePanel.value = "gm";
-      activeGmView.value = "overview";
-    } else if (userRole === "manager") {
-      activePanel.value = "manager";
-      activeManagerView.value = "monitoring";
-    } else if (userRole === "employee") {
-      activePanel.value = "employee";
-      activeEmployeeView.value = "overview";
-    }
+    router.push('/login');
   } catch (err) {
     console.error("Logout failed:", err);
   }
@@ -441,12 +492,14 @@ const handleLogout = async () => {
   border-bottom: 1px solid #e2e8f0;
   padding: 0.5rem;
   gap: 0.25rem;
+  overflow-x: auto;
 }
 
 .gm-nav-item,
 .manager-nav-item,
 .employee-nav-item {
   flex: 1;
+  min-width: fit-content;
   padding: 0.75rem 0.5rem;
   border: none;
   background: transparent;
