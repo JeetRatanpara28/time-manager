@@ -6,20 +6,29 @@ processes = []
 
 [env]
   PHX_SERVER = "true"
-# Don't hardcode PORT — Fly sets it automatically
-# PORT = "4000" ❌ remove this
 
 [experimental]
   auto_rollback = true
 
 [[services]]
-  internal_port = 8080
   protocol = "tcp"
+  internal_port = 8080
 
   [[services.ports]]
-    port = 8080
+    port = 80
     handlers = ["http"]
 
   [[services.ports]]
     port = 443
-    handlers = ["tls","http"]
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    hard_limit = 25
+    soft_limit = 20
+    type = "connections"
+
+  [services.http_checks]
+    protocol = "http"
+    path = "/"
+    interval = "10s"
+    timeout = "5s"

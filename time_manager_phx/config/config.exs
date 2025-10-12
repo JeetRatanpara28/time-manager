@@ -1,51 +1,24 @@
-# This file is responsible for configuring your application
-# and its dependencies with the aid of the Config module.
-#
-# This configuration file is loaded before any dependency and
-# is restricted to this project.
-
-# General application configuration
 import Config
 
-config :time_manager_phx,
-  ecto_repos: [TimeManagerPhx.Repo],
-  generators: [timestamp_type: :utc_datetime, binary_id: true]
+# Only run this in production
+if config_env() == :prod do
+  # Database configuration from Fly secret
+  database_url =
+    System.get_env("DATABASE_URL") ||
+      raise "DATABASE_URL is missing. Please set it in Fly secrets."
 
-# Configures the endpoint
-config :time_manager_phx, TimeManagerPhxWeb.Endpoint,
-  url: [host: "localhost"],
-  adapter: Bandit.PhoenixAdapter,
-  render_errors: [
-    formats: [json: TimeManagerPhxWeb.ErrorJSON],
-    layout: false
-  ],
-  pubsub_server: TimeManagerPhx.PubSub,
-  live_view: [signing_salt: "kakIVh6G"]
+  config :time_manager_phx, TimeManagerPhx.Repo,
+    url: database_url,
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+    ssl: true
 
-# Configures the mailer
-#
-# By default it uses the "Local" adapter which stores the emails
-# locally. You can see the emails in your browser, at "/dev/mailbox".
-#
-# For production it's recommended to configure a different adapter
-# at the `config/runtime.exs`.
-config :time_manager_phx, TimeManagerPhx.Mailer, adapter: Swoosh.Adapters.Local
-
-# Configures Elixir's Logger
-config :logger, :default_formatter,
-  format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id]
-
-# Guardian configuration for JWT authentication
-config :time_manager_phx, TimeManagerPhx.Accounts.Guardian,
-  issuer: "time_manager_phx",
-  # FIXED: Use a proper secret key - in production use System.get_env()
-  secret_key: "super_secret_key_that_should_be_in_environment_variables_in_production_at_least_64_chars_long",
-  token_ttl: %{
-    "access" => {2, :hours},  # Extended for testing
-    "refresh" => {7, :days}
-  }
-
-# Import environment specific config. This must remain at the bottom
-# of this file so it overrides the configuration defined above.
-import_config "#{config_env()}.exs"
+  # Endpoint configuration
+  config :time_manager_phx, TimeManagerPhxWeb.Endpoint,
+    http: [
+      ip: {0, 0, 0, 0},
+      port: String.to_integer(System.get_env("PORT") || "8080")
+    ],
+    url: [host: System.get_env("FLY_APP_NAME") <> ".fly.dev", port: 443],
+    secret_key_base: System.get_env("SECRET_KEY_BASE"),
+    server: true
+end
