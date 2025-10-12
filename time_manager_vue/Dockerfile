@@ -9,7 +9,7 @@ RUN npm install
 COPY . .
 
 # Build Vue app with API URL baked in at build time
-ARG VITE_API_URL=http://localhost:4000
+ARG VITE_API_URL=https://time-manager-phx.fly.dev
 ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
