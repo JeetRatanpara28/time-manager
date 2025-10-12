@@ -2,8 +2,8 @@
   <div class="login-page">
     <div class="login-container">
       <div class="login-header">
-        <h1>Time Manager Pro</h1>
-        <p>Welcome back! Please sign in to your account</p>
+        <h1>Arkham Time Manager</h1>
+        <p>Please sign in to your account</p>
       </div>
 
       <form @submit.prevent="handleLogin" class="login-form">
@@ -40,10 +40,10 @@
 
         <button type="submit" class="login-btn" :disabled="isLoading">
           <span v-if="isLoading" class="loading-spinner"></span>
-          {{ isLoading ? 'Signing in...' : 'Sign In' }}
+          {{ isLoading ? "Signing in..." : "Sign In" }}
         </button>
 
-        <div class="demo-credentials">
+        <!-- <div class="demo-credentials">
           <h4>Demo Credentials:</h4>
           <div class="credential-item">
             <strong>Employee:</strong> employee@example.com / password123
@@ -54,45 +54,45 @@
           <div class="credential-item">
             <strong>GM:</strong> gm@example.com / password123
           </div>
-        </div>
+        </div> -->
       </form>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';
-import { login } from '@/composables/useAuthStore.js';
+import { ref, reactive } from "vue";
+import { login } from "@/composables/useAuthStore.js";
 
 const loginForm = reactive({
-  email: '',
-  password: ''
+  email: "",
+  password: "",
 });
 
 const isLoading = ref(false);
-const error = ref('');
+const error = ref("");
 
 const handleLogin = async () => {
   if (!loginForm.email || !loginForm.password) {
-    error.value = 'Please fill in all fields';
+    error.value = "Please fill in all fields";
     return;
   }
 
   isLoading.value = true;
-  error.value = '';
+  error.value = "";
 
   try {
     const result = await login(loginForm.email, loginForm.password);
 
     if (result.success) {
-      console.log('✅ Login successful, user will be redirected by App.vue');
+      console.log("✅ Login successful, user will be redirected by App.vue");
       // App.vue will handle navigation based on role
     } else {
-      error.value = result.error || 'Login failed';
+      error.value = result.error || "Login failed";
     }
   } catch (err) {
-    console.error('Login error:', err);
-    error.value = 'An unexpected error occurred. Please try again.';
+    console.error("Login error:", err);
+    error.value = "An unexpected error occurred. Please try again.";
   } finally {
     isLoading.value = false;
   }
@@ -233,8 +233,12 @@ const handleLogin = async () => {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .demo-credentials {

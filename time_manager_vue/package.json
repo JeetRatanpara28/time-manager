@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --port 5173 --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:cordova": "npm run build && rm -rf ../time_manager_IOS/www/* && cp -R dist/* ../time_manager_IOS/www/"
   },
   "dependencies": {
     "vue": "^3.5.21",
